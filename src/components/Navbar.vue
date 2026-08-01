@@ -1,0 +1,23 @@
+<template>
+  <header class="nav-shell" :class="{ open: menuOpen }">
+    <nav class="nav-bar">
+      <router-link to="/" class="brand" @click="closeMenu"><img src="https://megaprinter.ec/wp-content/uploads/2024/05/Logo-color-web-1.png" alt="Megaprinter"></router-link>
+      <div class="desktop-links"><router-link to="/products">Productos</router-link><router-link to="/repairs">Taller técnico</router-link><a href="/#contacto">Contacto</a></div>
+      <div class="nav-actions"><button class="cart" @click="cartStore.setCheckoutOpen(true)" aria-label="Abrir carrito"><i class="fa-solid fa-bag-shopping"></i><span v-if="cartStore.totalItems">{{ cartStore.totalItems }}</span></button><button class="menu-toggle" @click="menuOpen = !menuOpen" :aria-expanded="menuOpen"><i :class="menuOpen ? 'fa-solid fa-xmark' : 'fa-solid fa-bars-staggered'"></i><small>{{ menuOpen ? 'Cerrar' : 'Menú' }}</small></button></div>
+    </nav>
+    <transition name="menu-reveal"><div v-if="menuOpen" class="menu-panel"><div class="menu-index">Megaprinter / Navegación</div><div class="menu-links"><router-link to="/" @click="closeMenu"><b>01</b> Inicio <i class="fa-solid fa-arrow-up-right-from-square"></i></router-link><router-link to="/products" @click="closeMenu"><b>02</b> Productos <i class="fa-solid fa-arrow-up-right-from-square"></i></router-link><router-link to="/repairs" @click="closeMenu"><b>03</b> Reparaciones <i class="fa-solid fa-arrow-up-right-from-square"></i></router-link><a href="/#contacto" @click="closeMenu"><b>04</b> Contacto <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div><div class="menu-footer"><span>Guayaquil, Ecuador</span><a href="https://wa.me/593998028318" target="_blank">+593 99 802 8318</a></div></div></transition>
+  </header>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useCartStore } from '@/stores/cart'
+const cartStore = useCartStore()
+const menuOpen = ref(false)
+const closeMenu = () => { menuOpen.value = false }
+</script>
+
+<style scoped lang="scss">
+.nav-shell { position:fixed; inset:0 0 auto; z-index:1000; color:#fff; pointer-events:none; }.nav-bar { height:74px; padding:0 18px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,.11); background:rgba(8,13,17,.82); backdrop-filter:blur(18px); pointer-events:auto; }.brand img { display:block; width:auto; height:34px; }.desktop-links { display:none; }.nav-actions { display:flex; align-items:center; gap:9px; }.cart,.menu-toggle { display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.04); color:#fff; cursor:pointer; }.cart { position:relative; width:39px; height:39px; border-radius:50%; }.cart span { position:absolute; top:-5px; right:-4px; width:17px; height:17px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:#46aaf1; color:#07131c; font-size:10px; font-weight:900; }.menu-toggle { gap:7px; min-width:68px; height:39px; border-radius:30px; font-size:13px; }.menu-toggle small { font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.6px; }.menu-panel { position:fixed; inset:74px 0 0; padding:28px 24px; background:#0b1218; display:flex; flex-direction:column; pointer-events:auto; }.menu-index { color:#66b9ef; font-size:10px; font-weight:900; letter-spacing:1.4px; text-transform:uppercase; }.menu-links { margin:auto 0; display:flex; flex-direction:column; }.menu-links a { padding:17px 0; display:flex; align-items:center; gap:15px; border-bottom:1px solid rgba(255,255,255,.1); color:#f5f6f3; text-decoration:none; font-size:clamp(2rem,9vw,3.5rem); font-weight:800; letter-spacing:-.06em; }.menu-links b { color:#55b6ed; font-size:10px; letter-spacing:0; }.menu-links i { margin-left:auto; font-size:14px; color:#55b6ed; }.menu-footer { display:flex; justify-content:space-between; color:#8c9ca7; font-size:11px; }.menu-footer a { color:#fff; text-decoration:none; font-weight:800; }.menu-reveal-enter-active,.menu-reveal-leave-active { transition:opacity .25s ease; .menu-panel { transition:transform .4s cubic-bezier(.16,1,.3,1); } }.menu-reveal-enter-from,.menu-reveal-leave-to { opacity:0; .menu-panel { transform:translateY(-18px); } }
+@media (min-width:800px) { .nav-bar { height:82px; padding:0 max(4vw,42px); }.brand img { height:39px; }.desktop-links { display:flex; align-items:center; gap:29px; margin-left:auto; margin-right:32px; }.desktop-links a { color:#bdc7ca; font-size:12px; font-weight:800; text-decoration:none; letter-spacing:.2px; transition:color .2s ease; &:hover,&.router-link-active { color:#fff; } }.menu-toggle { display:none; }.menu-panel { display:none; } }
+</style>
