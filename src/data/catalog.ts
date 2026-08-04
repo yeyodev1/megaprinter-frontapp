@@ -1,17 +1,16 @@
 import type { CatalogItem } from '@/services/catalog'
 
-const laptopImage = ''
-const monitorImage = ''
+const asusImage = 'https://dlcdnwebimgs.asus.com/gain/c07e97f2-896a-4055-9526-21485f507b72/w800'
 
 const laptop = (id: string, name: string, price: number, processor: string, storage: string, ram: string, screen: string, originalPrice?: number): CatalogItem => ({
-  _id: id, slug: id, name, price, originalPrice, imageUrl: laptopImage, kind: 'product', active: true,
+  _id: id, slug: id, name, price, originalPrice, imageUrl: id.startsWith('asus-') ? asusImage : '', kind: 'product', active: true,
   category: { _id: 'laptops', name: 'Laptops', slug: 'laptops' },
   description: `${processor}, ${ram}, ${storage} y pantalla de ${screen}. Incluye Windows y Office original.`,
   specifications: [{ label: 'Procesador', value: processor }, { label: 'Almacenamiento', value: storage }, { label: 'Memoria', value: ram }, { label: 'Pantalla', value: screen }, { label: 'Incluye', value: 'Windows y Office original' }],
 })
 
 const monitor = (id: string, name: string, price: number, size: string, refreshRate: string, originalPrice: number): CatalogItem => ({
-  _id: id, slug: id, name, price, originalPrice, imageUrl: monitorImage, kind: 'product', active: true,
+  _id: id, slug: id, name, price, originalPrice, imageUrl: '', kind: 'product', active: true,
   category: { _id: 'monitores', name: 'Monitores', slug: 'monitores' },
   description: `Monitor de ${size} con frecuencia de actualización de ${refreshRate}.`,
   specifications: [{ label: 'Tamaño', value: size }, { label: 'Frecuencia', value: refreshRate }, { label: 'Categoría', value: 'Monitor' }],

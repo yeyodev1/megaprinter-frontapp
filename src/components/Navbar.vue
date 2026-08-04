@@ -1,7 +1,7 @@
 <template>
   <header class="nav-shell" :class="{ open: menuOpen }">
     <nav class="nav-bar">
-      <router-link to="/" class="brand" @click="closeMenu"><img src="https://megaprinter.ec/wp-content/uploads/2024/05/Logo-color-web-1.png" alt="Megaprinter"></router-link>
+      <router-link to="/" class="brand" @click="closeMenu"><img :src="brand.logo" :alt="brand.name"></router-link>
       <div class="desktop-links"><router-link to="/products">Productos</router-link><router-link to="/repairs">Taller técnico</router-link><a href="/#contacto">Contacto</a></div>
       <div class="nav-actions"><button class="cart" @click="cartStore.setCheckoutOpen(true)" aria-label="Abrir carrito"><i class="fa-solid fa-bag-shopping"></i><span v-if="cartStore.totalItems">{{ cartStore.totalItems }}</span></button><button class="menu-toggle" @click="menuOpen = !menuOpen" :aria-expanded="menuOpen"><i :class="menuOpen ? 'fa-solid fa-xmark' : 'fa-solid fa-bars-staggered'"></i><small>{{ menuOpen ? 'Cerrar' : 'Menú' }}</small></button></div>
     </nav>
@@ -12,6 +12,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useCartStore } from '@/stores/cart'
+import { brand } from '@/config/brand'
 const cartStore = useCartStore()
 const menuOpen = ref(false)
 const closeMenu = () => { menuOpen.value = false }

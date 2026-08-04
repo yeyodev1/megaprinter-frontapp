@@ -7,7 +7,7 @@ const api = apiBase
 export interface Category { _id: string; name: string; slug: string }
 export interface CatalogSpecification { label: string; value: string }
 export interface CatalogItem { _id: string; slug?: string; name: string; description: string; price: number; originalPrice?: number; imageUrl: string; kind: 'product' | 'service'; active: boolean; category: Category; specifications?: CatalogSpecification[] }
-export interface CatalogPayload { name: string; description: string; price: number; imageUrl: string; kind: 'product' | 'service'; active: boolean; category: string }
+export interface CatalogPayload { name: string; description: string; price: number; imageUrl: string; kind: 'product' | 'service'; active: boolean; category: string; specifications?: CatalogSpecification[] }
 
 const adminHeaders = (token: string) => ({ Authorization: `Bearer ${token}` })
 

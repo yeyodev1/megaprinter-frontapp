@@ -16,7 +16,7 @@
 
       <section class="catalog-list" aria-live="polite">
         <article v-for="product in filteredProducts" :key="product._id" class="product-card">
-          <router-link :to="`/productos/${product.slug || product._id}`" class="image-link"><img v-if="product.imageUrl" :src="product.imageUrl" :alt="product.name"><i v-else :class="product.category.slug === 'monitores' ? 'fa-solid fa-desktop' : 'fa-solid fa-laptop'"></i><span>{{ product.category.name }}</span></router-link>
+          <router-link :to="`/productos/${product.slug || product._id}`" class="image-link"><ProductMedia :product="product" /><span>{{ product.category.name }}</span></router-link>
           <div class="product-copy"><p class="product-code">Disponible para compra inmediata</p><h2>{{ product.name }}</h2><p class="description">{{ product.description }}</p><ul v-if="product.specifications" class="specs"><li v-for="spec in product.specifications.slice(0, 3)" :key="spec.label"><span>{{ spec.label }}</span><strong>{{ spec.value }}</strong></li></ul><div class="card-footer"><div class="price"><small v-if="product.originalPrice">Antes ${{ product.originalPrice.toFixed(0) }}</small><strong>${{ product.price.toFixed(2) }}</strong></div><div class="actions"><router-link :to="`/productos/${product.slug || product._id}`">Ver detalle</router-link><button @click="buyNow(product)">Comprar <i class="fa-solid fa-arrow-right"></i></button></div></div></div>
         </article>
         <div v-if="!loading && !filteredProducts.length" class="empty"><i class="fa-solid fa-box-open"></i><h2>No encontramos ese equipo</h2><p>Prueba otra búsqueda o escríbenos para ayudarte a elegir.</p><a :href="whatsappUrl" target="_blank" rel="noopener">Consultar por WhatsApp</a></div>
@@ -27,14 +27,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import Navbar from '@/components/Navbar.vue'
 import FooterSection from '@/components/FooterSection.vue'
 import CheckoutModal from '@/components/CheckoutModal.vue'
 import { getCatalog, type CatalogItem } from '@/services/catalog'
 import { useCartStore } from '@/stores/cart'
+import ProductMedia from '@/components/ProductMedia.vue'
 
 const cartStore = useCartStore()
+const route = useRoute()
 const products = ref<CatalogItem[]>([])
 const loading = ref(true)
 const search = ref('')
@@ -46,6 +49,11 @@ const filteredProducts = computed(() => {
   return products.value.filter(product => (category.value === 'all' || product.category.slug === category.value) && (!query || `${product.name} ${product.description}`.toLocaleLowerCase().includes(query)))
 })
 const buyNow = (item: CatalogItem) => cartStore.addItem({ id: item._id, name: item.name, price: item.price, image: item.imageUrl })
+const applyRouteFilters = () => {
+  search.value = typeof route.query.q === 'string' ? route.query.q : ''
+  category.value = typeof route.query.category === 'string' && filters.some(filter => filter.value === route.query.category) ? route.query.category : 'all'
+}
+watch(() => route.query, applyRouteFilters, { immediate: true })
 onMounted(async () => { products.value = await getCatalog('product'); loading.value = false })
 </script>
 

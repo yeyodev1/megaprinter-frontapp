@@ -3,16 +3,13 @@
     <div class="container">
       <div class="footer-top">
         <div class="footer-col brand-col">
-          <img src="https://megaprinter.ec/wp-content/uploads/2024/05/Logo-color-web-1.png" alt="Megaprinter" class="footer-logo" />
-          <p>Tungurahua 200 y Padre Solano, esquina.<br>Guayaquil, Ecuador</p>
+          <img :src="brand.logo" :alt="brand.name" class="footer-logo" />
+          <p>{{ brand.addressShort }}<br>{{ brand.city }}</p>
           <div class="social-row">
-            <a href="https://www.facebook.com/profile.php?id=61556411207673" target="_blank" aria-label="Facebook">
-              <i class="fa-brands fa-facebook-f"></i>
-            </a>
-            <a href="https://www.instagram.com/megaprinter.ec/" target="_blank" aria-label="Instagram">
+            <a :href="brand.instagram" target="_blank" rel="noopener" aria-label="Instagram">
               <i class="fa-brands fa-instagram"></i>
             </a>
-            <a href="https://wa.me/593998028318" target="_blank" aria-label="WhatsApp">
+            <a :href="`https://wa.me/${brand.whatsappRaw}`" target="_blank" rel="noopener" aria-label="WhatsApp">
               <i class="fa-brands fa-whatsapp"></i>
             </a>
           </div>
@@ -27,10 +24,10 @@
 
         <div class="footer-col">
           <h4>Contacto Directo</h4>
-          <p><i class="fa-solid fa-phone"></i> 046017398 / 0984253059</p>
-          <p><i class="fa-brands fa-whatsapp"></i> +593 99 802 8318</p>
-          <p><i class="fa-solid fa-envelope"></i> info@megaprinter.ec</p>
-          <p><i class="fa-solid fa-envelope-circle-check"></i> megaprinter@bakano.ec</p>
+          <p><i class="fa-brands fa-instagram"></i> <a :href="brand.instagram" target="_blank" rel="noopener" class="contact-link">{{ brand.instagramHandle }}</a></p>
+          <p><i class="fa-brands fa-whatsapp"></i> <a :href="`https://wa.me/${brand.whatsappRaw}`" target="_blank" rel="noopener" class="contact-link">{{ brand.whatsappDisplay }}</a></p>
+          <p><i class="fa-solid fa-phone"></i> {{ brand.phone }}</p>
+          <p><i class="fa-solid fa-envelope"></i> {{ brand.email }}</p>
         </div>
       </div>
 
@@ -43,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-// Footer logic
+import { brand } from '@/config/brand'
 </script>
 
 <style scoped lang="scss">
@@ -100,6 +97,16 @@
     i {
       color: #0070f3;
       margin-right: 8px;
+    }
+  }
+
+  .contact-link {
+    color: #a1a1a6;
+    text-decoration: none;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: #0070f3;
     }
   }
 
