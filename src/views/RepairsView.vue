@@ -1,11 +1,3 @@
-<template>
-  <div class="repairs-page"><Navbar /><main>
-    <section class="hero"><div class="hero-image"><img src="https://megaprinter.ec/wp-content/uploads/2024/05/impresoras-mantenimiento.jpg" alt="Taller Megaprinter"></div><div class="hero-copy"><span>Laboratorio técnico / Guayaquil</span><h1>Devolvemos<br><em>ritmo</em> a tu<br>operación.</h1><p>Servicios publicados y administrados directamente por el taller Megaprinter.</p></div></section>
-    <section class="steps"><div v-for="step in steps" :key="step.number"><b>{{ step.number }}</b><span>{{ step.name }}</span></div></section>
-    <section class="services"><header><span>Servicios disponibles</span><h2>Ingresa con un problema.<br>Sal con una respuesta.</h2></header><div class="service-list"><article v-for="(service,index) in services" :key="service._id" class="service"><b>0{{ index+1 }}</b><div class="thumb"><img v-if="service.imageUrl" :src="service.imageUrl" :alt="service.name"><i v-else class="fa-solid fa-screwdriver-wrench"></i></div><div class="service-copy"><span>{{ service.category.name }}</span><h3>{{ service.name }}</h3><p>{{ service.description }}</p></div><div class="service-action"><strong>Desde ${{ service.price.toFixed(2) }}</strong><button @click="addToCart(service)">Solicitar <i class="fa-solid fa-plus"></i></button></div></article><div v-if="!loading && !services.length" class="empty">Aún no hay servicios publicados. <router-link to="/admin/catalog">Gestionar catálogo</router-link></div></div></section>
-  </main><FooterSection /><CheckoutModal /></div>
-</template>
-
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import Navbar from '@/components/Navbar.vue'
@@ -13,15 +5,350 @@ import FooterSection from '@/components/FooterSection.vue'
 import CheckoutModal from '@/components/CheckoutModal.vue'
 import { getCatalog, type CatalogItem } from '@/services/catalog'
 import { useCartStore } from '@/stores/cart'
+import { whatsappLink } from '@/config/brand'
+
 const cartStore = useCartStore()
 const services = ref<CatalogItem[]>([])
 const loading = ref(true)
-const steps = [{ number:'01',name:'Diagnóstico' },{ number:'02',name:'Aprobación' },{ number:'03',name:'Intervención' },{ number:'04',name:'Entrega' }]
-onMounted(async () => { try { services.value = await getCatalog('service') } finally { loading.value = false } })
-const addToCart = (item: CatalogItem) => cartStore.addItem({ id:item._id, name:item.name, price:item.price, image:item.imageUrl })
+
+const steps = [
+  { number: '01', name: 'Diagnóstico' },
+  { number: '02', name: 'Aprobación' },
+  { number: '03', name: 'Intervención' },
+  { number: '04', name: 'Entrega' },
+]
+
+const bookingLink = whatsappLink('Hola Megaprinter, necesito agendar un diagnóstico técnico.')
+
+const addToCart = (item: CatalogItem) =>
+  cartStore.addItem({ id: item._id, name: item.name, price: item.price, image: item.imageUrl })
+
+onMounted(async () => {
+  try {
+    services.value = await getCatalog('service')
+  } finally {
+    loading.value = false
+  }
+})
 </script>
 
+<template>
+  <div class="repairs-page">
+    <Navbar />
+
+    <main id="contenido">
+      <section class="hero">
+        <div class="hero-image">
+          <img
+            src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1400&q=80"
+            alt="Taller técnico de Megaprinter"
+          />
+        </div>
+        <div class="hero-copy">
+          <p class="eyebrow">Laboratorio técnico / Guayaquil</p>
+          <h1>Devolvemos<br /><em>ritmo</em> a tu<br />operación.</h1>
+          <p class="lede">
+            Servicios publicados y administrados directamente por el taller Megaprinter.
+          </p>
+          <a class="cta" :href="bookingLink" target="_blank" rel="noopener">
+            <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Agendar diagnóstico
+          </a>
+        </div>
+      </section>
+
+      <ol class="steps">
+        <li v-for="step in steps" :key="step.number">
+          <b>{{ step.number }}</b><span>{{ step.name }}</span>
+        </li>
+      </ol>
+
+      <section class="services">
+        <header>
+          <p class="eyebrow light">Servicios disponibles</p>
+          <h2>Ingresa con un problema.<br />Sal con una respuesta.</h2>
+        </header>
+
+        <div class="service-list">
+          <p v-if="loading" class="state">Cargando servicios…</p>
+
+          <article v-for="(service, index) in services" :key="service._id" class="service">
+            <b class="index">{{ String(index + 1).padStart(2, '0') }}</b>
+
+            <div class="thumb">
+              <img v-if="service.imageUrl" :src="service.imageUrl" :alt="service.name" loading="lazy" />
+              <i v-else class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>
+            </div>
+
+            <div class="service-copy">
+              <span>{{ service.category.name }}</span>
+              <h3>{{ service.name }}</h3>
+              <p>{{ service.description }}</p>
+            </div>
+
+            <div class="service-action">
+              <strong>Desde ${{ service.price.toFixed(2) }}</strong>
+              <button type="button" @click="addToCart(service)">
+                Solicitar <i class="fa-solid fa-plus" aria-hidden="true"></i>
+              </button>
+            </div>
+          </article>
+
+          <div v-if="!loading && !services.length" class="state empty">
+            <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>
+            <p>Aún no hay servicios publicados en línea.</p>
+            <a :href="bookingLink" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <FooterSection />
+    <CheckoutModal />
+  </div>
+</template>
+
 <style scoped lang="scss">
-.repairs-page { min-height:100vh; background:#111c1f; color:#edf0e8; display:flex; flex-direction:column; }.hero { min-height:92svh; display:flex; flex-direction:column; background:#d8d8c8; color:#102024; }.hero-image { height:42svh; overflow:hidden; background:#20383c; }.hero-image img { width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.2); opacity:.85; }.hero-copy { padding:36px 24px 55px; display:flex; flex-direction:column; gap:20px; }.hero-copy > span,.services header > span,.service-copy > span { color:#3189b5; font-size:10px; font-weight:900; letter-spacing:1.3px; text-transform:uppercase; }.hero-copy h1 { font-size:clamp(3.7rem,14vw,8.5rem); line-height:.76; letter-spacing:-.1em; }.hero-copy h1 em { color:#27749a; font-family:Georgia,serif; font-weight:400; }.hero-copy p { max-width:340px; color:#475a59; line-height:1.6; }.steps { display:flex; flex-wrap:wrap; background:#2d83aa; }.steps div { flex:1; min-width:50%; padding:18px; display:flex; align-items:center; gap:10px; border-right:1px solid rgba(255,255,255,.25); border-bottom:1px solid rgba(255,255,255,.25); }.steps b { font-size:17px; }.steps span { font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:1px; }.services { padding:85px 24px; display:flex; flex-direction:column; gap:42px; }.services header { display:flex; flex-direction:column; gap:17px; }.services h2 { font-size:clamp(2.65rem,9vw,6rem); line-height:.86; letter-spacing:-.085em; }.service-list { display:flex; flex-direction:column; border-top:1px solid rgba(237,240,232,.3); }.service { padding:22px 0; display:flex; flex-wrap:wrap; align-items:center; gap:14px; border-bottom:1px solid rgba(237,240,232,.3); }.service > b { color:#72acc2; font-size:11px; }.thumb { width:66px; height:66px; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:50%; background:#29444b; color:#7fc5e8; }.thumb img { width:100%; height:100%; object-fit:cover; filter:grayscale(1); }.service-copy { min-width:180px; flex:1; display:flex; flex-direction:column; gap:7px; }.service-copy h3 { font-size:22px; letter-spacing:-.04em; }.service-copy p { color:#a5b3b0; font-size:13px; line-height:1.55; }.service-action { width:100%; padding-left:25px; display:flex; align-items:center; justify-content:space-between; }.service-action strong { font-size:13px; }.service-action button { border:1px solid #68acc7; background:transparent; color:#dbf4ff; padding:10px 13px; font-weight:800; cursor:pointer; }.empty { padding:45px 0; color:#a5b3b0; }.empty a { color:#72c5ed; }
-@media (min-width:800px) { .hero { min-height:720px; flex-direction:row-reverse; }.hero-image,.hero-copy { width:50%; height:auto; }.hero-copy { padding:130px max(5vw,48px); justify-content:center; }.steps { padding:0 max(5vw,48px); flex-wrap:nowrap; }.steps div { min-width:0; border-bottom:0; }.services { padding:130px max(5vw,48px); }.service { flex-wrap:nowrap; gap:28px; }.thumb { width:120px; height:120px; }.service-action { width:130px; padding-left:0; flex-direction:column; align-items:flex-end; gap:14px; }.service-action button { display:flex; gap:8px; align-items:center; } }
+.repairs-page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background: $ink-800;
+  color: $text-on-dark;
+}
+
+.hero {
+  display: flex;
+  min-height: 92svh;
+  flex-direction: column;
+  background: $surface-sunken;
+  color: $text-strong;
+}
+
+.hero-image {
+  height: 42svh;
+  overflow: hidden;
+  background: $ink-700;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.hero-copy {
+  @include stack($space-5);
+  align-items: flex-start;
+  padding: $space-10 $gutter $space-16;
+}
+
+.eyebrow {
+  @include eyebrow;
+
+  &.light {
+    color: $brand-300;
+  }
+}
+
+h1 {
+  @include display-heading($text-hero);
+}
+
+.lede {
+  @include body-text($text-body, $text-body-lg);
+  max-width: 40ch;
+}
+
+.cta {
+  @include button-primary;
+  padding: $space-4 $space-6;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  background: $brand-600;
+  color: $white;
+
+  li {
+    @include row($space-3);
+    flex: 1;
+    min-width: 50%;
+    padding: $space-4 $space-5;
+    border-right: 1px solid rgba(255, 255, 255, 0.22);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+  }
+
+  b {
+    font-size: 1.1rem;
+    font-weight: $weight-black;
+  }
+
+  span {
+    font-size: $text-eyebrow;
+    font-weight: $weight-bold;
+    letter-spacing: $tracking-eyebrow;
+    text-transform: uppercase;
+  }
+}
+
+.services {
+  @include section;
+  @include stack($space-12);
+
+  header {
+    @include stack($space-4);
+  }
+
+  h2 {
+    @include display-heading;
+
+    em {
+      color: $brand-300;
+    }
+  }
+}
+
+.service-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid $border-on-dark;
+}
+
+.service {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-4;
+  padding-block: $space-5;
+  border-bottom: 1px solid $border-on-dark;
+}
+
+.index {
+  color: $brand-300;
+  font-size: $text-eyebrow;
+  font-weight: $weight-bold;
+}
+
+.thumb {
+  display: flex;
+  width: 68px;
+  height: 68px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: $radius-pill;
+  background: $surface-dark-raised;
+  color: $brand-300;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.service-copy {
+  @include stack($space-2);
+  min-width: 180px;
+  flex: 1;
+
+  > span {
+    @include eyebrow($brand-300);
+  }
+
+  h3 {
+    font-size: $text-heading;
+  }
+
+  p {
+    @include body-text($text-on-dark-muted, $text-body-sm);
+  }
+}
+
+.service-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-4;
+
+  strong {
+    font-size: $text-body-sm;
+  }
+
+  button {
+    @include button-on-dark;
+  }
+}
+
+.state {
+  padding-block: $space-10;
+  color: $text-on-dark-muted;
+
+  &.empty {
+    @include empty-state;
+    color: $text-on-dark-muted;
+
+    i {
+      color: $brand-300;
+    }
+
+    a {
+      @include button-primary;
+      margin-top: $space-2;
+    }
+  }
+}
+
+@include from($bp-md) {
+  .hero {
+    min-height: 680px;
+    flex-direction: row-reverse;
+  }
+
+  .hero-image,
+  .hero-copy {
+    width: 50%;
+    height: auto;
+  }
+
+  .hero-copy {
+    justify-content: center;
+    padding: $space-24 $gutter;
+  }
+
+  .steps {
+    flex-wrap: nowrap;
+    padding-inline: $gutter;
+
+    li {
+      min-width: 0;
+      border-bottom: 0;
+
+      &:last-child {
+        border-right: 0;
+      }
+    }
+  }
+
+  .service {
+    flex-wrap: nowrap;
+    gap: $space-8;
+  }
+
+  .thumb {
+    width: 110px;
+    height: 110px;
+    border-radius: $radius-md;
+  }
+
+  .service-action {
+    width: 150px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: $space-3;
+  }
+}
 </style>

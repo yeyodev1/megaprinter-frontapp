@@ -1,22 +1,345 @@
-<template>
-  <div class="users-page"><AdminNav /><main>
-    <header class="page-header"><div><span class="eyebrow"><i class="fa-solid fa-users-gear"></i> Equipo interno</span><h1>Personas que<br><em>gestionan.</em></h1><p>Crea accesos seguros para quienes administran catálogo, pedidos y clientes.</p></div><div class="team-count"><i class="fa-solid fa-user-shield"></i><strong>{{ users.length }}</strong><span>accesos activos</span></div></header>
-    <section class="workspace"><form class="create-card" @submit.prevent="create"><div class="card-title"><div class="title-icon"><i class="fa-solid fa-user-plus"></i></div><div><span>Nuevo acceso</span><h2>Invitar al equipo</h2></div></div><div class="form-body"><label><span>Nombre completo</span><input v-model="form.name" required placeholder="Nombre y apellido"></label><label><span>Correo corporativo</span><div class="input-icon"><i class="fa-solid fa-envelope"></i><input v-model="form.email" type="email" required placeholder="equipo@megaprinter.ec"></div></label><label><span>Contraseña temporal</span><div class="input-icon"><i class="fa-solid fa-key"></i><input v-model="form.password" type="password" minlength="10" required placeholder="Mínimo 10 caracteres"></div></label><p class="security-note"><i class="fa-solid fa-shield-halved"></i> Comparte la contraseña temporal por un canal seguro.</p><button><i class="fa-solid fa-paper-plane"></i> Crear acceso</button><small v-if="message">{{ message }}</small></div></form>
-      <section class="member-card"><header><div><span>Directorio</span><h2>Accesos internos</h2></div><i class="fa-solid fa-address-book"></i></header><div v-if="users.length" class="members"><article v-for="user in users" :key="user.id"><div class="avatar">{{ initials(user.name) }}</div><div><strong>{{ user.name }}</strong><span>{{ user.email }}</span></div><time><i class="fa-solid fa-calendar-day"></i>{{ new Date(user.createdAt).toLocaleDateString('es-EC') }}</time></article></div><div v-else class="empty"><i class="fa-solid fa-users"></i><p>No hay usuarios registrados.</p></div></section></section>
-  </main></div>
-</template>
-
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import axios from 'axios'
 import AdminNav from '@/components/AdminNav.vue'
-import { apiBase } from '@/services/api'
-interface User { id:string; name:string; email:string; createdAt:string }
-const token=sessionStorage.getItem('admin-token')||''; const users=ref<User[]>([]); const message=ref(''); const form=reactive({name:'',email:'',password:''}); const headers={Authorization:`Bearer ${token}`}
-const load=async()=>{users.value=(await axios.get(`${apiBase}/auth/users`,{headers})).data}; const create=async()=>{try { await axios.post(`${apiBase}/auth/users`,form,{headers}); Object.assign(form,{name:'',email:'',password:''}); message.value='Acceso creado correctamente.'; await load() } catch (error:any) { message.value=error.response?.data?.error||'No se pudo crear el acceso.' } }; const initials=(name:string)=>name.split(' ').map(part=>part[0]).slice(0,2).join('').toUpperCase(); onMounted(load)
+import { http, errorMessage } from '@/services/http'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  createdAt: string
+}
+
+const users = ref<User[]>([])
+const loading = ref(true)
+const saving = ref(false)
+const feedback = reactive({ message: '', kind: '' as 'ok' | 'error' | '' })
+const form = reactive({ name: '', email: '', password: '' })
+
+const initials = (name: string) =>
+  name
+    .split(' ')
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+const formatDate = (value: string) => new Date(value).toLocaleDateString('es-EC')
+
+const load = async () => {
+  loading.value = true
+  try {
+    users.value = (await http.get<User[]>('/auth/users')).data
+  } catch (caught) {
+    feedback.message = errorMessage(caught, 'No pudimos cargar los accesos.')
+    feedback.kind = 'error'
+  } finally {
+    loading.value = false
+  }
+}
+
+const create = async () => {
+  saving.value = true
+  feedback.message = ''
+  feedback.kind = ''
+  try {
+    await http.post('/auth/users', form)
+    Object.assign(form, { name: '', email: '', password: '' })
+    feedback.message = 'Acceso creado correctamente.'
+    feedback.kind = 'ok'
+    await load()
+  } catch (caught) {
+    feedback.message = errorMessage(caught, 'No se pudo crear el acceso.')
+    feedback.kind = 'error'
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(load)
 </script>
 
+<template>
+  <div class="users-page">
+    <AdminNav />
+
+    <main id="contenido">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow"><i class="fa-solid fa-users-gear" aria-hidden="true"></i> Equipo interno</p>
+          <h1>Personas que<br /><em>gestionan.</em></h1>
+          <p>Crea accesos seguros para quienes administran catálogo, pedidos y clientes.</p>
+        </div>
+        <div class="team-count">
+          <i class="fa-solid fa-user-shield" aria-hidden="true"></i>
+          <strong>{{ users.length }}</strong>
+          <span>accesos activos</span>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <form class="create-card" @submit.prevent="create">
+          <div class="card-title">
+            <div class="title-icon"><i class="fa-solid fa-user-plus" aria-hidden="true"></i></div>
+            <div><span>Nuevo acceso</span><h2>Invitar al equipo</h2></div>
+          </div>
+
+          <div class="form-body">
+            <label class="field">
+              <span>Nombre completo</span>
+              <input v-model="form.name" required placeholder="Nombre y apellido" autocomplete="name" />
+            </label>
+
+            <label class="field">
+              <span>Correo corporativo</span>
+              <div class="input-icon">
+                <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+                <input v-model="form.email" type="email" required placeholder="equipo@megaprinter.ec" autocomplete="email" />
+              </div>
+            </label>
+
+            <label class="field">
+              <span>Contraseña temporal</span>
+              <div class="input-icon">
+                <i class="fa-solid fa-key" aria-hidden="true"></i>
+                <input
+                  v-model="form.password"
+                  type="password"
+                  minlength="10"
+                  required
+                  placeholder="Mínimo 10 caracteres"
+                  autocomplete="new-password"
+                />
+              </div>
+            </label>
+
+            <p class="security-note">
+              <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+              Comparte la contraseña temporal por un canal seguro.
+            </p>
+
+            <button type="submit" :disabled="saving">
+              <i :class="saving ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-paper-plane'" aria-hidden="true"></i>
+              {{ saving ? 'Creando…' : 'Crear acceso' }}
+            </button>
+
+            <p v-if="feedback.message" class="feedback" :class="feedback.kind" role="status">
+              {{ feedback.message }}
+            </p>
+          </div>
+        </form>
+
+        <section class="member-card">
+          <header>
+            <div><span>Directorio</span><h2>Accesos internos</h2></div>
+            <i class="fa-solid fa-address-book" aria-hidden="true"></i>
+          </header>
+
+          <p v-if="loading" class="state">Cargando accesos…</p>
+
+          <div v-else-if="users.length" class="members">
+            <article v-for="user in users" :key="user.id">
+              <div class="avatar" aria-hidden="true">{{ initials(user.name) }}</div>
+              <div class="member-copy">
+                <strong>{{ user.name }}</strong>
+                <span>{{ user.email }}</span>
+              </div>
+              <time>
+                <i class="fa-solid fa-calendar-day" aria-hidden="true"></i>{{ formatDate(user.createdAt) }}
+              </time>
+            </article>
+          </div>
+
+          <div v-else class="empty">
+            <i class="fa-solid fa-users" aria-hidden="true"></i>
+            <p>No hay usuarios registrados.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+</template>
+
 <style scoped lang="scss">
-.users-page { min-height:100vh; background:#edf2ef; color:#18262c; }.users-page main { max-width:1240px; margin:0 auto; padding:46px 20px 90px; }.page-header { display:flex; flex-direction:column; gap:24px; margin-bottom:30px; }.eyebrow { display:flex; align-items:center; gap:7px; color:#338cba; font-size:10px; font-weight:900; letter-spacing:1.3px; text-transform:uppercase; }.page-header h1 { margin-top:10px; font-size:clamp(3.2rem,9vw,6.7rem); line-height:.76; letter-spacing:-.1em; }.page-header h1 em { color:#2c8bb9; font-family:Georgia,serif; font-weight:400; }.page-header p { max-width:420px; margin-top:17px; color:#617176; line-height:1.6; }.team-count { width:145px; padding:18px; display:flex; flex-direction:column; gap:5px; border-radius:14px; background:#17313c; color:#fff; }.team-count i { color:#6cc0ed; }.team-count strong { font-size:33px; line-height:1; letter-spacing:-.07em; }.team-count span { color:#afc4cb; font-size:11px; }.workspace { display:flex; flex-direction:column; gap:18px; }.create-card,.member-card { overflow:hidden; border:1px solid #dce5e1; border-radius:17px; background:#fff; }.card-title { padding:22px; display:flex; gap:13px; align-items:center; border-bottom:1px solid #e6ece9; }.title-icon { width:43px; height:43px; display:flex; align-items:center; justify-content:center; border-radius:12px; background:#e2f1f8; color:#298abb; }.card-title span,.member-card header span { color:#448eb4; font-size:10px; font-weight:900; letter-spacing:1px; text-transform:uppercase; }.card-title h2,.member-card header h2 { margin-top:3px; font-size:20px; letter-spacing:-.04em; }.form-body { padding:22px; display:flex; flex-direction:column; gap:14px; }.form-body label { display:flex; flex-direction:column; gap:7px; }.form-body label>span { color:#586b70; font-size:11px; font-weight:900; letter-spacing:.5px; text-transform:uppercase; }.form-body input { box-sizing:border-box; width:100%; border:1px solid #d4deda; border-radius:9px; padding:12px 13px; outline:none; background:#fbfcfb; color:#17262b; font:inherit; font-size:14px; &:focus { border-color:#3b99c8; box-shadow:0 0 0 3px rgba(59,153,200,.12); } }.input-icon { position:relative; }.input-icon i { position:absolute; top:50%; left:13px; color:#5aa4cd; transform:translateY(-50%); font-size:12px; }.input-icon input { padding-left:34px; }.security-note { display:flex; gap:8px; padding:11px; border-radius:9px; background:#f0f7fa; color:#587078; font-size:11px; line-height:1.45; }.security-note i { color:#3c9dcb; }.form-body button { display:flex; align-items:center; justify-content:center; gap:8px; border:0; border-radius:9px; padding:13px; background:#247fb0; color:#fff; font-weight:900; cursor:pointer; transition:transform .2s ease; &:hover { transform:translateY(-2px); } }.form-body small { color:#27814d; font-size:12px; font-weight:800; }.member-card { padding:22px; }.member-card header { display:flex; align-items:start; justify-content:space-between; margin-bottom:16px; }.member-card header>i { color:#5aaed9; font-size:22px; }.members { display:flex; flex-direction:column; }.members article { padding:13px 0; display:flex; align-items:center; gap:11px; border-top:1px solid #e6ece9; }.avatar { width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:#dceff6; color:#277fab; font-size:12px; font-weight:900; }.members article>div:nth-child(2) { display:flex; flex:1; flex-direction:column; gap:3px; min-width:0; }.members strong { font-size:13px; }.members span { overflow:hidden; color:#6a7b7f; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }.members time { display:flex; flex-direction:column; gap:4px; align-items:flex-end; color:#7d8d8f; font-size:10px; }.members time i { color:#57a8cf; }.empty { padding:42px 15px; display:flex; flex-direction:column; align-items:center; gap:7px; color:#77888c; text-align:center; }.empty i { color:#5aa9d1; font-size:28px; }
-@media (min-width:800px) { .users-page { padding-left:210px; }.users-page main { padding:65px 34px 100px; }.page-header { flex-direction:row; align-items:flex-end; justify-content:space-between; }.team-count { margin-bottom:12px; }.workspace { flex-direction:row; align-items:flex-start; }.create-card { width:43%; }.member-card { flex:1; } }
+.users-page {
+  @include admin-shell;
+}
+
+.page-header {
+  @include admin-header;
+}
+
+.eyebrow {
+  @include admin-eyebrow;
+}
+
+.team-count {
+  @include admin-stat-card;
+}
+
+.workspace {
+  @include stack($space-5);
+}
+
+.create-card,
+.member-card {
+  overflow: hidden;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  background: $surface-card;
+  box-shadow: $shadow-sm;
+}
+
+.card-title {
+  @include admin-card-title;
+}
+
+.form-body {
+  @include stack($space-4);
+  padding: $space-6;
+}
+
+.field {
+  @include admin-field;
+}
+
+.input-icon {
+  @include admin-input-icon;
+}
+
+.security-note {
+  display: flex;
+  gap: $space-2;
+  padding: $space-3;
+  border-radius: $radius-sm;
+  background: $brand-100;
+  color: $brand-700;
+  font-size: $text-eyebrow;
+  line-height: $leading-body;
+
+  i {
+    color: $brand-600;
+  }
+}
+
+.form-body > button {
+  @include button-primary;
+  padding: $space-4;
+}
+
+.feedback {
+  font-size: $text-caption;
+  font-weight: $weight-semibold;
+
+  &.ok {
+    color: $success-500;
+  }
+
+  &.error {
+    color: $danger-500;
+  }
+}
+
+.member-card {
+  padding: $space-6;
+
+  > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: $space-4;
+
+    span {
+      @include eyebrow;
+    }
+
+    h2 {
+      margin-top: 2px;
+      font-size: $text-subheading;
+    }
+
+    > i {
+      color: $brand-400;
+      font-size: 1.35rem;
+    }
+  }
+}
+
+.members {
+  display: flex;
+  flex-direction: column;
+
+  article {
+    @include row($space-3);
+    padding-block: $space-3;
+    border-top: 1px solid $border-subtle;
+  }
+}
+
+.avatar {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+  background: $brand-100;
+  color: $brand-700;
+  font-size: $text-caption;
+  font-weight: $weight-black;
+}
+
+.member-copy {
+  @include stack(3px);
+  min-width: 0;
+  flex: 1;
+
+  strong {
+    font-size: $text-body-sm;
+  }
+
+  span {
+    @include truncate;
+    color: $text-muted;
+    font-size: $text-eyebrow;
+  }
+}
+
+.members time {
+  @include stack($space-1);
+  align-items: flex-end;
+  color: $text-muted;
+  font-size: 0.6875rem;
+
+  i {
+    color: $brand-400;
+  }
+}
+
+.state {
+  padding-block: $space-8;
+  color: $text-muted;
+  text-align: center;
+}
+
+.empty {
+  @include empty-state;
+}
+
+@include from($bp-md) {
+  .workspace {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .create-card {
+    width: 44%;
+  }
+
+  .member-card {
+    flex: 1;
+  }
+}
 </style>

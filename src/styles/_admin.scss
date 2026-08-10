@@ -1,0 +1,186 @@
+// =============================================================================
+// Patrones compartidos del panel interno. Las cuatro vistas de administracion
+// repetian el mismo shell, cabecera y tarjetas con valores ligeramente
+// distintos cada una; aqui viven una sola vez.
+// =============================================================================
+
+@use 'tokens' as *;
+@use 'mixins' as *;
+
+@mixin admin-shell {
+  min-height: 100vh;
+  background: $surface-page;
+  color: $text-strong;
+
+  > main {
+    @include container;
+    padding-block: $space-10 $space-20;
+  }
+
+  @include from($bp-md) {
+    padding-left: 220px;
+
+    > main {
+      padding-block: $space-12 $space-24;
+    }
+  }
+}
+
+@mixin admin-header {
+  @include stack($space-6);
+  margin-bottom: $space-8;
+
+  h1 {
+    @include display-heading($text-display);
+    margin-top: $space-3;
+  }
+
+  p {
+    @include body-text;
+    max-width: 46ch;
+    margin-top: $space-3;
+  }
+
+  @include from($bp-md) {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+@mixin admin-eyebrow {
+  @include eyebrow;
+}
+
+@mixin admin-card($padding: $space-6) {
+  @include card($padding);
+  border-radius: $radius-lg;
+}
+
+@mixin admin-card-title {
+  @include row($space-3);
+  padding: $space-5 $space-6;
+  border-bottom: 1px solid $border-subtle;
+
+  .title-icon {
+    display: flex;
+    width: 42px;
+    height: 42px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: $radius-sm;
+    background: $brand-100;
+    color: $brand-600;
+  }
+
+  span {
+    @include eyebrow;
+  }
+
+  h2 {
+    margin-top: 2px;
+    font-size: $text-subheading;
+  }
+}
+
+@mixin admin-stat-card {
+  @include stack($space-2);
+  width: 150px;
+  padding: $space-5;
+  border-radius: $radius-md;
+  background: $ink-800;
+  color: $text-on-dark;
+
+  i {
+    color: $brand-300;
+  }
+
+  strong {
+    font-size: 2rem;
+    font-weight: $weight-black;
+    line-height: 1;
+    letter-spacing: $tracking-display;
+  }
+
+  span {
+    color: $text-on-dark-muted;
+    font-size: $text-eyebrow;
+  }
+}
+
+@mixin admin-refresh-button {
+  @include button-base;
+  align-self: flex-start;
+  background: $ink-800;
+  color: $text-on-dark;
+
+  &:hover:not(:disabled) {
+    background: $ink-700;
+    transform: translateY(-2px);
+  }
+}
+
+@mixin admin-field {
+  @include stack($space-2);
+
+  > span {
+    @include field-label;
+  }
+
+  input,
+  textarea,
+  select {
+    @include input-base;
+  }
+
+  textarea {
+    min-height: 110px;
+    resize: vertical;
+  }
+}
+
+// Icono decorativo dentro de un input. El icono no debe capturar el click o el
+// campo deja de enfocarse al pulsar sobre el.
+@mixin admin-input-icon {
+  position: relative;
+
+  > i {
+    position: absolute;
+    top: 50%;
+    left: $space-4;
+    color: $brand-500;
+    font-size: $text-caption;
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+
+  input,
+  select {
+    padding-left: $space-10;
+  }
+}
+
+@mixin admin-status-badge {
+  @include badge;
+
+  &.paid {
+    background: $success-100;
+    color: $success-500;
+  }
+
+  &.cancelled {
+    background: $danger-100;
+    color: $danger-500;
+  }
+
+  &.whatsapp {
+    background: $accent-100;
+    color: $accent-600;
+  }
+
+  &.pending {
+    background: $warning-100;
+    color: $warning-500;
+  }
+}

@@ -1,11 +1,12 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { getAdminToken } from '@/services/http'
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
     name: 'Home',
     component: () => import('../views/HomeView.vue'),
-    meta: { title: 'Home' },
+    meta: { title: 'Tecnología y soporte técnico' },
   },
   {
     path: '/products',
@@ -23,7 +24,7 @@ const routes: Array<RouteRecordRaw> = [
     path: '/repairs',
     name: 'Repairs',
     component: () => import('../views/RepairsView.vue'),
-    meta: { title: 'Reparaciones' },
+    meta: { title: 'Taller técnico' },
   },
   {
     path: '/payment/confirmation',
@@ -38,12 +39,6 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: 'Confirmación de pago' },
   },
   {
-    path: '/admin/catalog',
-    name: 'CatalogAdmin',
-    component: () => import('../views/CatalogAdminView.vue'),
-    meta: { title: 'Administrar catálogo', requiresAdmin: true },
-  },
-  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/LoginView.vue'),
@@ -54,6 +49,12 @@ const routes: Array<RouteRecordRaw> = [
     name: 'AdminDashboard',
     component: () => import('../views/AdminDashboardView.vue'),
     meta: { title: 'Panel interno', requiresAdmin: true },
+  },
+  {
+    path: '/admin/catalog',
+    name: 'CatalogAdmin',
+    component: () => import('../views/CatalogAdminView.vue'),
+    meta: { title: 'Administrar catálogo', requiresAdmin: true },
   },
   {
     path: '/admin/orders',
@@ -78,13 +79,23 @@ const routes: Array<RouteRecordRaw> = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior() {
-    return { left: 0, top: 0, behavior: 'smooth' }
+  scrollBehavior(to, _from, savedPosition) {
+    if (savedPosition) return savedPosition
+    // Un ancla (#contacto) debe llevar a su seccion, no al tope de la pagina.
+    if (to.hash) return { el: to.hash, top: 88, behavior: 'smooth' }
+    return { left: 0, top: 0 }
   },
 })
 
 router.beforeEach((to) => {
-  if (to.meta.requiresAdmin && !sessionStorage.getItem('admin-token')) return { path: '/login' }
+  if (to.meta.requiresAdmin && !getAdminToken()) {
+    // `redirect` permite volver a la pagina pedida despues de iniciar sesion.
+    return { name: 'Login', query: { redirect: to.fullPath } }
+  }
+  // Con sesion activa no tiene sentido volver al formulario de acceso.
+  if (to.name === 'Login' && getAdminToken() && !to.query.expired) {
+    return { name: 'AdminDashboard' }
+  }
 })
 
 router.afterEach((to) => {

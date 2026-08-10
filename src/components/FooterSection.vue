@@ -1,163 +1,193 @@
+<script setup lang="ts">
+import { brand, whatsappLink } from '@/config/brand'
+import BrandMark from '@/components/BrandMark.vue'
+
+const year = new Date().getFullYear()
+const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
+</script>
+
 <template>
-  <footer id="contacto" class="footer-section">
-    <div class="container">
+  <footer id="contacto" class="footer">
+    <div class="calibration-strip" aria-hidden="true"></div>
+    <div class="footer-inner">
       <div class="footer-top">
-        <div class="footer-col brand-col">
-          <img :src="brand.logo" :alt="brand.name" class="footer-logo" />
-          <p>{{ brand.addressShort }}<br>{{ brand.city }}</p>
-          <div class="social-row">
+        <div class="col brand-col">
+          <BrandMark tone="light" size="lg" />
+          <p>{{ brand.addressShort }}<br />{{ brand.city }}</p>
+          <div class="social">
             <a :href="brand.instagram" target="_blank" rel="noopener" aria-label="Instagram">
-              <i class="fa-brands fa-instagram"></i>
+              <i class="fa-brands fa-instagram" aria-hidden="true"></i>
             </a>
-            <a :href="`https://wa.me/${brand.whatsappRaw}`" target="_blank" rel="noopener" aria-label="WhatsApp">
-              <i class="fa-brands fa-whatsapp"></i>
+            <a :href="whatsapp" target="_blank" rel="noopener" aria-label="WhatsApp">
+              <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
             </a>
           </div>
         </div>
 
-        <div class="footer-col">
-          <h4>Horarios de Atención</h4>
-          <p><strong>Lunes a Viernes:</strong> 08:00 - 18:30</p>
-          <p><strong>Sábados:</strong> 09:00 - 17:00</p>
-          <p><strong>Domingos:</strong> Cerrado</p>
+        <div class="col">
+          <h2>Horarios de atención</h2>
+          <dl class="hours">
+            <div v-for="slot in brand.hours" :key="slot.days">
+              <dt>{{ slot.days }}</dt>
+              <dd>{{ slot.time }}</dd>
+            </div>
+          </dl>
         </div>
 
-        <div class="footer-col">
-          <h4>Contacto Directo</h4>
-          <p><i class="fa-brands fa-instagram"></i> <a :href="brand.instagram" target="_blank" rel="noopener" class="contact-link">{{ brand.instagramHandle }}</a></p>
-          <p><i class="fa-brands fa-whatsapp"></i> <a :href="`https://wa.me/${brand.whatsappRaw}`" target="_blank" rel="noopener" class="contact-link">{{ brand.whatsappDisplay }}</a></p>
-          <p><i class="fa-solid fa-phone"></i> {{ brand.phone }}</p>
-          <p><i class="fa-solid fa-envelope"></i> {{ brand.email }}</p>
+        <div class="col">
+          <h2>Contacto directo</h2>
+          <ul class="contact">
+            <li>
+              <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+              <a :href="whatsapp" target="_blank" rel="noopener">{{ brand.whatsappDisplay }}</a>
+            </li>
+            <li>
+              <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+              <a :href="`mailto:${brand.email}`">{{ brand.email }}</a>
+            </li>
+            <li>
+              <i class="fa-brands fa-instagram" aria-hidden="true"></i>
+              <a :href="brand.instagram" target="_blank" rel="noopener">{{ brand.instagramHandle }}</a>
+            </li>
+            <li>
+              <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+              <span>{{ brand.address }}</span>
+            </li>
+          </ul>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <p>&copy; {{ new Date().getFullYear() }} Megaprinter S.A. Todos los derechos reservados.</p>
-        <p>Desarrollado con estándares Awwwards & Flexbox</p>
+        <p>&copy; {{ year }} {{ brand.name }}. Todos los derechos reservados.</p>
+        <p>Atención local desde {{ brand.foundedYear }}.</p>
       </div>
     </div>
   </footer>
 </template>
 
-<script setup lang="ts">
-import { brand } from '@/config/brand'
-</script>
-
 <style scoped lang="scss">
-.footer-section {
-  background: #080808;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 80px 24px 30px 24px;
-  display: flex;
-  justify-content: center;
+.footer {
+  background: $key-900;
+  color: $text-on-dark;
 }
 
-.container {
-  width: 100%;
-  max-width: 1300px;
-  display: flex;
-  flex-direction: column;
-  gap: 60px;
+.footer-inner {
+  @include container;
+  @include stack($space-12);
+  padding-block: $space-16 $space-8;
 }
 
 .footer-top {
   display: flex;
-  justify-content: space-between;
-  gap: 40px;
   flex-wrap: wrap;
+  justify-content: space-between;
+  gap: $space-10;
 }
 
-.footer-col {
-  flex: 1;
-  min-width: 260px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.col {
+  @include stack($space-4);
+  flex: 1 1 260px;
 
   &.brand-col {
-    max-width: 350px;
-  }
-
-  .footer-logo {
-    height: 44px;
-    width: auto;
-    object-fit: contain;
-    filter: brightness(1.2);
+    max-width: 340px;
   }
 
   p {
-    font-size: 14px;
-    color: #a1a1a6;
-    line-height: 1.6;
-
-    strong {
-      color: #fff;
-    }
-
-    i {
-      color: #0070f3;
-      margin-right: 8px;
-    }
+    @include body-text($text-on-dark-muted, $text-body-sm);
   }
 
-  .contact-link {
-    color: #a1a1a6;
-    text-decoration: none;
-    transition: color 0.2s ease;
-
-    &:hover {
-      color: #0070f3;
-    }
-  }
-
-  h4 {
-    font-size: 18px;
-    color: #fff;
-    font-weight: 700;
+  h2 {
+    @include eyebrow($cyan-soft);
+    margin-bottom: $space-1;
   }
 }
 
-.social-row {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
+.social {
+  @include row($space-2);
+  margin-top: $space-1;
 
   a {
-    width: 40px;
-    height: 40px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
     display: flex;
+    width: 42px;
+    height: 42px;
     align-items: center;
     justify-content: center;
-    color: #fff;
-    text-decoration: none;
-    transition: all 0.2s ease;
+    border: 1px solid $border-on-dark;
+    border-radius: $radius-pill;
+    color: $text-on-dark;
+    transition: background $duration-base $ease-out, border-color $duration-base $ease-out,
+      transform $duration-base $ease-out;
+    @include focus-ring($brand-300);
 
     &:hover {
-      background: #0070f3;
-      border-color: #0070f3;
+      border-color: $brand-500;
+      background: $brand-500;
+      transform: translateY(-2px);
+    }
+  }
+}
+
+.hours {
+  @include stack($space-2);
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: $space-4;
+    padding-bottom: $space-2;
+    border-bottom: 1px solid $border-on-dark;
+  }
+
+  dt {
+    color: $text-on-dark-muted;
+    font-size: $text-body-sm;
+  }
+
+  dd {
+    @include mono-data($text-on-dark, $text-body-sm);
+  }
+}
+
+.contact {
+  @include stack($space-3);
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: $space-3;
+    color: $text-on-dark-muted;
+    font-size: $text-body-sm;
+    line-height: $leading-body;
+  }
+
+  i {
+    width: 16px;
+    padding-top: 4px;
+    color: $brand-400;
+  }
+
+  a {
+    transition: color $duration-base $ease-out;
+    @include focus-ring($brand-300);
+
+    &:hover {
+      color: $brand-300;
     }
   }
 }
 
 .footer-bottom {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  padding-top: 24px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 13px;
-  color: #777;
-  flex-wrap: wrap;
-  gap: 16px;
+  gap: $space-4;
+  padding-top: $space-6;
+  border-top: 1px solid $border-on-dark;
+  @include mono-data($key-400, $text-eyebrow);
 }
 
-@media (max-width: 768px) {
-  .footer-top {
-    flex-direction: column;
-  }
+@include until($bp-md) {
   .footer-bottom {
     flex-direction: column;
     text-align: center;

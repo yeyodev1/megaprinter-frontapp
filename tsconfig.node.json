@@ -7,7 +7,13 @@
     "allowSyntheticDefaultImports": true,
     "types": ["node"],
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "composite": true,
+    // Sin esto `vue-tsc -b` compilaba vite.config.ts y dejaba un vite.config.js
+    // junto al fuente. Vite resuelve el .js antes que el .ts, asi que el sitio
+    // arrancaba con una copia congelada de la configuracion y ninguna edicion
+    // del .ts tenia efecto.
+    "noEmit": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "scripts/**/*.ts"]
 }

@@ -3,3 +3,8 @@ dist
 .env
 *.local
 .vercel
+
+# Artefacto que `vue-tsc -b` dejaba junto al fuente. Vite lo prefiere sobre
+# vite.config.ts, asi que si reaparece el servidor arranca con una configuracion
+# congelada. Ver "noEmit" en tsconfig.node.json.
+vite.config.js

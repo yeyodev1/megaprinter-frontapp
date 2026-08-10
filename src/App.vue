@@ -4,6 +4,7 @@ import PaymentModal from '@/components/PaymentModal.vue'
 
 <template>
   <div class="app-container">
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <router-view v-slot="{ Component }">
       <transition name="fade" mode="out-in">
         <component :is="Component" />
@@ -13,20 +14,10 @@ import PaymentModal from '@/components/PaymentModal.vue'
   </div>
 </template>
 
-<style lang="scss">
+<style scoped lang="scss">
 .app-container {
-  min-height: 100vh;
   display: flex;
+  min-height: 100vh;
   flex-direction: column;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 </style>

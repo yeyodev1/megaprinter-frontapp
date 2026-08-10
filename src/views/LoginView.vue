@@ -1,16 +1,174 @@
-<template>
-  <main class="login-page"><router-link to="/" class="back">← Megaprinter</router-link><form @submit.prevent="login"><span>Acceso restringido</span><h1>Panel interno</h1><p>Acceso exclusivo para el equipo operativo Megaprinter.</p><input v-model="email" type="email" placeholder="correo@bakano.ec" required autofocus><input v-model="password" type="password" placeholder="Contraseña" required><button>Entrar al panel <i class="fa-solid fa-arrow-right"></i></button><small v-if="error">{{ error }}</small></form></main>
-</template>
-
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import axios from 'axios'
-import { apiBase } from '@/services/api'
-const router = useRouter(); const email = ref('dreyes@bakano.ec'); const password = ref(''); const error = ref('')
-const login = async () => { try { const { data } = await axios.post(`${apiBase}/auth/login`,{ email:email.value,password:password.value }); sessionStorage.setItem('admin-token',data.token); router.push('/admin') } catch { error.value='Correo o contraseña incorrectos.' } }
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { errorMessage } from '@/services/http'
+import BrandMark from '@/components/BrandMark.vue'
+
+const router = useRouter()
+const route = useRoute()
+const auth = useAuthStore()
+
+const email = ref('')
+const password = ref('')
+const error = ref('')
+const loading = ref(false)
+
+const expired = computed(() => route.query.expired === '1')
+
+const submit = async () => {
+  loading.value = true
+  error.value = ''
+  try {
+    await auth.login(email.value.trim(), password.value)
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/admin'
+    router.push(redirect)
+  } catch (caught) {
+    error.value = errorMessage(caught, 'Correo o contraseña incorrectos.')
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
+<template>
+  <main class="login-page">
+    <router-link to="/" class="back">
+      <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Volver al sitio
+    </router-link>
+
+    <form @submit.prevent="submit">
+      <BrandMark tone="light" size="lg" />
+
+      <div class="intro">
+        <p class="eyebrow">Acceso restringido</p>
+        <h1>Panel interno</h1>
+        <p class="lede">Acceso exclusivo para el equipo operativo de Megaprinter.</p>
+      </div>
+
+      <p v-if="expired" class="notice" role="status">
+        <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
+        Tu sesión expiró. Vuelve a iniciar sesión para continuar.
+      </p>
+
+      <label>
+        <span>Correo</span>
+        <input
+          v-model="email"
+          type="email"
+          required
+          autofocus
+          autocomplete="username"
+          placeholder="correo@megaprinter.ec"
+        />
+      </label>
+
+      <label>
+        <span>Contraseña</span>
+        <input
+          v-model="password"
+          type="password"
+          required
+          autocomplete="current-password"
+          placeholder="••••••••••"
+        />
+      </label>
+
+      <p v-if="error" class="error" role="alert">
+        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error }}
+      </p>
+
+      <button type="submit" :disabled="loading">
+        <i v-if="loading" class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+        {{ loading ? 'Verificando…' : 'Entrar al panel' }}
+        <i v-if="!loading" class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+      </button>
+    </form>
+  </main>
+</template>
+
 <style scoped lang="scss">
-.login-page { min-height:100vh; padding:28px; display:flex; flex-direction:column; background:#10191c; color:#f1f2ed; }.back { color:#7dc7f4; text-decoration:none; font-size:12px; font-weight:800; }.login-page form { width:100%; max-width:430px; margin:auto; display:flex; flex-direction:column; align-items:flex-start; gap:16px; }.login-page span { color:#68b9ec; font-size:11px; font-weight:900; letter-spacing:1.4px; text-transform:uppercase; }.login-page h1 { font-size:clamp(3rem,12vw,6rem); letter-spacing:-.09em; line-height:.8; }.login-page p { color:#aab7b9; line-height:1.55; }.login-page input { width:100%; box-sizing:border-box; padding:15px; border:1px solid rgba(255,255,255,.18); border-radius:5px; outline:0; background:rgba(255,255,255,.06); color:#fff; font:inherit; &:focus { border-color:#5ab8ef; } }.login-page button { display:flex; align-items:center; gap:10px; border:0; padding:15px 18px; background:#5ab8ef; color:#07141a; font-weight:900; cursor:pointer; }.login-page small { color:#ff8994; }
+.login-page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  padding: $space-6 $gutter $space-10;
+  background: $ink-900;
+  color: $text-on-dark;
+}
+
+.back {
+  @include row($space-2);
+  align-self: flex-start;
+  color: $brand-300;
+  font-size: $text-caption;
+  font-weight: $weight-bold;
+  @include focus-ring($brand-300);
+}
+
+form {
+  @include stack($space-5);
+  width: 100%;
+  max-width: 420px;
+  align-items: stretch;
+  margin: auto;
+}
+
+.intro {
+  @include stack($space-3);
+}
+
+.eyebrow {
+  @include eyebrow($brand-300);
+}
+
+h1 {
+  @include display-heading($text-display);
+}
+
+.lede {
+  @include body-text($text-on-dark-muted, $text-body-sm);
+}
+
+label {
+  @include stack($space-2);
+
+  span {
+    @include field-label;
+    color: $text-on-dark-muted;
+  }
+
+  input {
+    @include input-on-dark;
+  }
+}
+
+.notice,
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: $space-2;
+  padding: $space-3;
+  border-radius: $radius-sm;
+  font-size: $text-caption;
+  line-height: $leading-body;
+}
+
+.notice {
+  border: 1px solid rgba(209, 138, 27, 0.4);
+  background: rgba(209, 138, 27, 0.12);
+  color: #f0c27a;
+}
+
+.error {
+  border: 1px solid rgba(216, 74, 90, 0.4);
+  background: rgba(216, 74, 90, 0.12);
+  color: #ff9aa5;
+}
+
+button[type='submit'] {
+  @include button-primary;
+  padding: $space-4;
+  font-size: $text-body-md;
+}
 </style>

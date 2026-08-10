@@ -1,30 +1,53 @@
-<template>
-  <main class="confirmation-page">
-    <div class="confirmation-card">
-      <i :class="iconClass"></i>
-      <span class="eyebrow">Megaprinter · Payphone</span>
-      <h1>{{ title }}</h1>
-      <p>{{ message }}</p>
-      <div class="transaction" v-if="status !== 'loading'">Transacción: {{ clientTransactionId || 'No disponible' }}</div>
-      <router-link to="/" class="home-link">Volver al inicio</router-link>
-    </div>
-  </main>
-</template>
-
 <script setup lang="ts">
-import axios from 'axios'
-import { apiBase } from '@/services/api'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { confirmPayphonePayment } from '@/services/orders'
+import { errorMessage } from '@/services/http'
+import { useCartStore } from '@/stores/cart'
+import { whatsappLink } from '@/config/brand'
+import BrandMark from '@/components/BrandMark.vue'
 
 const route = useRoute()
-const status = ref<'loading' | 'approved' | 'cancelled' | 'failed'>('loading')
+const cartStore = useCartStore()
+
+type Status = 'loading' | 'approved' | 'cancelled' | 'failed'
+
+const status = ref<Status>('loading')
 const details = ref('')
 const clientTransactionId = String(route.query.clientTransactionId || '')
 
-const title = computed(() => status.value === 'loading' ? 'Confirmando tu pago' : status.value === 'approved' ? 'Pago confirmado' : status.value === 'cancelled' ? 'Pago cancelado' : 'No pudimos confirmar el pago')
-const message = computed(() => status.value === 'loading' ? 'Estamos validando la transacción con Payphone.' : status.value === 'approved' ? 'Tu transacción fue aprobada. Nuestro equipo recibirá la confirmación para continuar con tu pedido.' : status.value === 'cancelled' ? 'La transacción fue cancelada en Payphone. No se acreditó ningún cobro; puedes volver a intentarlo cuando quieras.' : details.value || 'Comunícate con nosotros por WhatsApp para revisar tu pedido.')
-const iconClass = computed(() => status.value === 'loading' ? 'fa-solid fa-spinner fa-spin' : status.value === 'approved' ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark')
+const supportLink = whatsappLink(
+  `Hola Megaprinter, necesito ayuda con mi pago. Transacción: ${clientTransactionId || 'sin referencia'}.`,
+)
+
+const title = computed(
+  () =>
+    ({
+      loading: 'Confirmando tu pago',
+      approved: 'Pago confirmado',
+      cancelled: 'Pago cancelado',
+      failed: 'No pudimos confirmar el pago',
+    })[status.value],
+)
+
+const message = computed(() => {
+  if (status.value === 'loading') return 'Estamos validando la transacción con Payphone.'
+  if (status.value === 'approved')
+    return 'Tu transacción fue aprobada. Nuestro equipo recibirá la confirmación para continuar con tu pedido.'
+  if (status.value === 'cancelled')
+    return 'La transacción fue cancelada en Payphone. No se acreditó ningún cobro; puedes volver a intentarlo cuando quieras.'
+  return details.value || 'Comunícate con nosotros por WhatsApp para revisar tu pedido.'
+})
+
+const iconClass = computed(
+  () =>
+    ({
+      loading: 'fa-solid fa-spinner fa-spin',
+      approved: 'fa-solid fa-circle-check',
+      cancelled: 'fa-solid fa-circle-xmark',
+      failed: 'fa-solid fa-triangle-exclamation',
+    })[status.value],
+)
 
 onMounted(async () => {
   const id = route.query.id
@@ -35,22 +58,123 @@ onMounted(async () => {
   }
 
   try {
-    const { data } = await axios.post(`${apiBase}/orders/payphone/confirm`, { id, clientTransactionId })
-    status.value = data.statusCode === 3 && data.transactionStatus === 'Approved' ? 'approved' : data.statusCode === 2 || data.transactionStatus === 'Canceled' ? 'cancelled' : 'failed'
+    const data = await confirmPayphonePayment(String(id), clientTransactionId)
+    if (data.statusCode === 3 && data.transactionStatus === 'Approved') {
+      status.value = 'approved'
+      // El carrito seguia lleno despues de pagar: al volver al sitio el cliente
+      // veia sus productos otra vez y podia pagarlos por segunda vez.
+      cartStore.clearCart()
+    } else if (data.statusCode === 2 || data.transactionStatus === 'Canceled') {
+      status.value = 'cancelled'
+    } else {
+      status.value = 'failed'
+    }
     details.value = data.message || ''
-  } catch {
+  } catch (caught) {
     status.value = 'failed'
+    details.value = errorMessage(caught, '')
   }
 })
 </script>
 
+<template>
+  <main class="confirmation-page">
+    <section class="card" :class="`is-${status}`">
+      <i class="status-icon" :class="iconClass" aria-hidden="true"></i>
+
+      <BrandMark tone="light" size="sm" />
+      <p class="eyebrow">Confirmación de Payphone</p>
+
+      <h1>{{ title }}</h1>
+      <p class="message" role="status">{{ message }}</p>
+
+      <p v-if="status !== 'loading'" class="transaction">
+        Transacción: {{ clientTransactionId || 'No disponible' }}
+      </p>
+
+      <div v-if="status !== 'loading'" class="actions">
+        <router-link to="/" class="primary">Volver al inicio</router-link>
+        <a v-if="status !== 'approved'" :href="supportLink" target="_blank" rel="noopener" class="ghost">
+          <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Hablar con soporte
+        </a>
+      </div>
+    </section>
+  </main>
+</template>
+
 <style scoped lang="scss">
-.confirmation-page { min-height: 100vh; background: #080808; display: flex; align-items: center; justify-content: center; padding: 24px; }
-.confirmation-card { max-width: 500px; padding: 48px 32px; border: 1px solid rgba(255,255,255,.1); background: #121212; border-radius: 24px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; color: #fff; }
-.confirmation-card > i { font-size: 48px; color: #0070f3; }
-.confirmation-card h1 { font-size: 30px; }
-.confirmation-card p { color: #aaa; line-height: 1.6; }
-.transaction { padding: 9px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #83bfff; font-size: 12px; word-break: break-all; }
-.eyebrow { color: #3291ff; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-.home-link { color: #fff; background: #0070f3; padding: 13px 22px; border-radius: 12px; font-weight: 700; text-decoration: none; margin-top: 8px; }
+.confirmation-page {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: $gutter;
+  background: $ink-900;
+}
+
+.card {
+  @include stack($space-4);
+  max-width: 500px;
+  align-items: center;
+  padding: $space-12 $space-8;
+  border: 1px solid $border-on-dark;
+  border-radius: $radius-xl;
+  background: $surface-dark-raised;
+  color: $text-on-dark;
+  text-align: center;
+  box-shadow: $shadow-lg;
+}
+
+.status-icon {
+  font-size: 3rem;
+  color: $brand-400;
+}
+
+.is-approved .status-icon {
+  color: $accent-500;
+}
+
+.is-cancelled .status-icon,
+.is-failed .status-icon {
+  color: $danger-500;
+}
+
+.eyebrow {
+  @include eyebrow($brand-300);
+}
+
+h1 {
+  font-size: $text-title;
+}
+
+.message {
+  @include body-text($text-on-dark-muted, $text-body-md);
+}
+
+.transaction {
+  padding: $space-2 $space-3;
+  border: 1px solid $border-on-dark;
+  border-radius: $radius-xs;
+  color: $brand-300;
+  font-size: $text-caption;
+  word-break: break-all;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: $space-3;
+  margin-top: $space-2;
+}
+
+.primary {
+  @include button-primary;
+  padding: $space-3 $space-6;
+}
+
+.ghost {
+  @include button-on-dark;
+  padding: $space-3 $space-6;
+}
 </style>

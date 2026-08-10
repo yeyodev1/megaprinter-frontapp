@@ -1,27 +1,322 @@
-<template>
-  <div class="product-page"><Navbar /><main v-if="product" class="product-layout"><router-link to="/products" class="back"><i class="fa-solid fa-arrow-left"></i> Volver al catálogo</router-link><section class="product-main"><div class="visual"><ProductMedia :product="product" /><span>{{ product.category.name }}</span></div><div class="summary"><p class="eyebrow">Equipo disponible para compra</p><h1>{{ product.name }}</h1><p class="description">{{ product.description }}</p><div class="pricing"><small v-if="product.originalPrice">Precio anterior: ${{ product.originalPrice.toFixed(2) }}</small><strong>${{ product.price.toFixed(2) }}</strong><span>Precio final en USD</span></div><div class="purchase-actions"><button @click="buyNow">Comprar ahora <i class="fa-solid fa-arrow-right"></i></button><a :href="whatsappUrl" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Consultar por WhatsApp</a></div><p class="assurance"><i class="fa-solid fa-shield-halved"></i> Compra con atención local de Megaprinter. Te acompañamos antes y después de tu compra.</p></div></section><section class="details"><div><p class="eyebrow">Especificaciones</p><h2>Todo lo que necesitas saber.</h2></div><dl><div v-for="spec in product.specifications" :key="spec.label"><dt>{{ spec.label }}</dt><dd>{{ spec.value }}</dd></div></dl></section></main><main v-else class="not-found"><h1>Producto no encontrado</h1><router-link to="/products">Ir al catálogo</router-link></main><FooterSection /><CheckoutModal /></div>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Navbar from '@/components/Navbar.vue'
 import FooterSection from '@/components/FooterSection.vue'
 import CheckoutModal from '@/components/CheckoutModal.vue'
+import ProductMedia from '@/components/ProductMedia.vue'
 import { getCatalog, type CatalogItem } from '@/services/catalog'
 import { useCartStore } from '@/stores/cart'
-import ProductMedia from '@/components/ProductMedia.vue'
+import { whatsappLink } from '@/config/brand'
 
 const route = useRoute()
 const cartStore = useCartStore()
+
 const products = ref<CatalogItem[]>([])
-const product = computed(() => products.value.find(item => (item.slug || item._id) === route.params.slug))
-const whatsappUrl = computed(() => `https://wa.me/593998028318?text=${encodeURIComponent(`Hola Megaprinter, deseo información para comprar: ${product.value?.name || ''}. Precio publicado: $${product.value?.price.toFixed(2) || ''}.`)}`)
-const buyNow = () => { if (product.value) cartStore.addItem({ id: product.value._id, name: product.value.name, price: product.value.price, image: product.value.imageUrl }) }
-onMounted(async () => { products.value = await getCatalog('product') })
+const loading = ref(true)
+
+const product = computed(() =>
+  products.value.find((item) => (item.slug || item._id) === route.params.slug),
+)
+
+const consultLink = computed(() =>
+  whatsappLink(
+    `Hola Megaprinter, deseo información para comprar: ${product.value?.name ?? ''}. Precio publicado: $${
+      product.value?.price.toFixed(2) ?? ''
+    }.`,
+  ),
+)
+
+const buyNow = () => {
+  if (!product.value) return
+  cartStore.addItem({
+    id: product.value._id,
+    name: product.value.name,
+    price: product.value.price,
+    image: product.value.imageUrl,
+  })
+}
+
+onMounted(async () => {
+  try {
+    products.value = await getCatalog('product')
+  } finally {
+    loading.value = false
+  }
+})
 </script>
 
+<template>
+  <div class="product-page">
+    <Navbar />
+
+    <main v-if="loading" id="contenido" class="state-panel">
+      <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+      <p>Cargando producto…</p>
+    </main>
+
+    <main v-else-if="product" id="contenido" class="product-layout">
+      <router-link to="/products" class="back">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Volver al catálogo
+      </router-link>
+
+      <section class="product-main">
+        <div class="visual">
+          <ProductMedia :product="product" />
+          <span class="tag">{{ product.category.name }}</span>
+        </div>
+
+        <div class="summary">
+          <p class="eyebrow">Equipo disponible para compra</p>
+          <h1>{{ product.name }}</h1>
+          <p class="description">{{ product.description }}</p>
+
+          <div class="pricing">
+            <small v-if="product.originalPrice">Precio anterior: ${{ product.originalPrice.toFixed(2) }}</small>
+            <strong>${{ product.price.toFixed(2) }}</strong>
+            <span>Precio final en USD</span>
+          </div>
+
+          <div class="purchase-actions">
+            <button type="button" @click="buyNow">
+              Comprar ahora <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </button>
+            <a :href="consultLink" target="_blank" rel="noopener">
+              <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Consultar por WhatsApp
+            </a>
+          </div>
+
+          <p class="assurance">
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+            Compra con atención local de Megaprinter. Te acompañamos antes y después de tu compra.
+          </p>
+        </div>
+      </section>
+
+      <section v-if="product.specifications?.length" class="details">
+        <div>
+          <p class="eyebrow">Especificaciones</p>
+          <h2>Todo lo que necesitas saber.</h2>
+        </div>
+        <dl>
+          <div v-for="spec in product.specifications" :key="spec.label">
+            <dt>{{ spec.label }}</dt>
+            <dd>{{ spec.value }}</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+
+    <main v-else id="contenido" class="state-panel">
+      <i class="fa-solid fa-box-open" aria-hidden="true"></i>
+      <h1>Producto no encontrado</h1>
+      <p>El equipo que buscas ya no está publicado o cambió de dirección.</p>
+      <router-link to="/products">Ir al catálogo</router-link>
+    </main>
+
+    <FooterSection />
+    <CheckoutModal />
+  </div>
+</template>
+
 <style scoped lang="scss">
-.product-page { min-height:100vh; display:flex; flex-direction:column; background:#f5f8f8; color:#112d42; }.product-layout { max-width:1200px; width:100%; margin:0 auto; padding:112px 24px 72px; }.back { display:inline-flex; align-items:center; gap:8px; margin-bottom:28px; color:#21657a; font-size:13px; font-weight:800; text-decoration:none; }.product-main { display:flex; flex-direction:column; overflow:hidden; border-radius:16px; background:#fff; box-shadow:0 14px 40px rgba(17,45,66,.09); }.visual { position:relative; min-height:330px; background:#dbe8ea; display:flex; align-items:center; justify-content:center; }.visual img { width:100%; height:100%; position:absolute; object-fit:cover; }.visual>i { color:#367b8e; font-size:90px; }.visual span { position:absolute; top:20px; left:20px; padding:7px 10px; border-radius:6px; background:#fff; color:#155f76; font-size:11px; font-weight:800; text-transform:uppercase; }.summary { padding:34px 26px; display:flex; flex-direction:column; align-items:flex-start; gap:18px; }.eyebrow { margin:0; color:#1a807b; font-size:11px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; }.summary h1 { margin:0; font-size:clamp(2.8rem,7vw,5.6rem); line-height:.88; letter-spacing:-.07em; }.description { max-width:550px; margin:0; color:#536b78; line-height:1.65; }.pricing { display:flex; flex-direction:column; gap:2px; }.pricing small { color:#6e808b; text-decoration:line-through; }.pricing strong { color:#093e5a; font-size:42px; letter-spacing:-.07em; }.pricing span { color:#637a87; font-size:12px; }.purchase-actions { display:flex; flex-wrap:wrap; gap:10px; }.purchase-actions button,.purchase-actions a { display:flex; align-items:center; justify-content:center; gap:9px; min-height:48px; border-radius:8px; padding:0 17px; font:inherit; font-size:13px; font-weight:800; cursor:pointer; text-decoration:none; }.purchase-actions button { border:0; background:#d0a739; color:#132d3e; }.purchase-actions a { border:1px solid #6ac895; background:#f2fcf5; color:#167344; }.assurance { margin:0; padding-top:16px; border-top:1px solid #e1ebec; color:#536b78; font-size:12px; line-height:1.5; }.assurance i { color:#167c74; }.details { margin-top:30px; padding:30px 26px; display:flex; flex-direction:column; gap:24px; border-radius:14px; background:#e3eff0; }.details h2 { max-width:340px; margin:6px 0 0; font-size:clamp(2rem,5vw,3.4rem); line-height:.94; letter-spacing:-.06em; }.details dl { margin:0; display:flex; flex-direction:column; border-top:1px solid #bdced1; }.details dl div { display:flex; justify-content:space-between; gap:20px; padding:14px 0; border-bottom:1px solid #bdced1; }.details dt { color:#4d6874; font-size:13px; }.details dd { margin:0; color:#102f41; font-size:13px; font-weight:800; text-align:right; }.not-found { flex:1; padding:150px 24px 80px; text-align:center; }.not-found a { color:#186a80; font-weight:800; }
-@media (min-width:800px) { .product-layout { padding-top:130px; }.product-main { min-height:540px; flex-direction:row; }.visual,.summary { width:50%; }.summary { padding:58px; justify-content:center; }.details { padding:42px 52px; flex-direction:row; justify-content:space-between; }.details>div,.details dl { width:45%; } }
+.product-page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background: $surface-page;
+  color: $text-strong;
+}
+
+.product-layout {
+  @include container;
+  padding-block: calc(72px + #{$space-8}) $space-20;
+}
+
+.back {
+  @include row($space-2);
+  margin-bottom: $space-6;
+  color: $brand-600;
+  font-size: $text-body-sm;
+  font-weight: $weight-bold;
+  @include focus-ring;
+
+  &:hover {
+    color: $brand-700;
+  }
+}
+
+.product-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  background: $surface-card;
+  box-shadow: $shadow-md;
+}
+
+.visual {
+  position: relative;
+  min-height: 320px;
+
+  .tag {
+    @include badge($brand-700, rgba(255, 255, 255, 0.92));
+    position: absolute;
+    top: $space-4;
+    left: $space-4;
+    box-shadow: $shadow-xs;
+  }
+}
+
+.summary {
+  @include stack($space-5);
+  align-items: flex-start;
+  padding: $space-8 $space-6;
+}
+
+.eyebrow {
+  @include eyebrow;
+}
+
+h1 {
+  @include display-heading($text-display);
+}
+
+.description {
+  @include body-text($text-body, $text-body-lg);
+  max-width: 55ch;
+}
+
+.pricing {
+  @include stack(2px);
+
+  small {
+    @include mono-data($text-muted, $text-body-sm);
+    text-decoration: line-through;
+  }
+
+  strong {
+    @include price(2.5rem);
+  }
+
+  span {
+    @include mono-data($text-muted, $text-eyebrow);
+    text-transform: uppercase;
+    letter-spacing: $tracking-eyebrow;
+  }
+}
+
+.purchase-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-3;
+
+  button {
+    @include button-primary;
+    min-height: 48px;
+    padding-inline: $space-5;
+  }
+
+  a {
+    @include button-whatsapp;
+    min-height: 48px;
+    padding-inline: $space-5;
+  }
+}
+
+.assurance {
+  @include body-text($text-body, $text-caption);
+  padding-top: $space-4;
+  border-top: 1px solid $border-subtle;
+
+  i {
+    margin-right: $space-2;
+    color: $accent-600;
+  }
+}
+
+.details {
+  @include stack($space-6);
+  margin-top: $space-8;
+  padding: $space-8 $space-6;
+  border-radius: $radius-lg;
+  background: $surface-sunken;
+
+  h2 {
+    max-width: 14ch;
+    margin-top: $space-2;
+    @include display-heading($text-title);
+  }
+
+  dl {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid $border-strong;
+  }
+
+  dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: $space-5;
+    padding-block: $space-3;
+    border-bottom: 1px solid $border-strong;
+  }
+
+  dt {
+    @include mono-data($text-muted, $text-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  dd {
+    @include mono-data($text-strong, $text-body-sm);
+    font-weight: $weight-medium;
+    text-align: right;
+  }
+}
+
+.state-panel {
+  @include empty-state;
+  flex: 1;
+  justify-content: center;
+  padding-top: calc(72px + #{$space-16});
+
+  h1 {
+    font-size: $text-title;
+  }
+
+  a {
+    @include button-primary;
+    margin-top: $space-2;
+  }
+}
+
+@include from($bp-md) {
+  .product-main {
+    min-height: 520px;
+    flex-direction: row;
+  }
+
+  .visual,
+  .summary {
+    width: 50%;
+  }
+
+  .summary {
+    justify-content: center;
+    padding: $space-12;
+  }
+
+  .details {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: $space-10 $space-12;
+
+    > div,
+    dl {
+      width: 46%;
+    }
+  }
+}
 </style>

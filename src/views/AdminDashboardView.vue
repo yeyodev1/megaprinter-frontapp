@@ -1,26 +1,313 @@
-<template>
-  <div ref="page" class="dashboard"><AdminNav /><main>
-    <header class="page-header" data-admin-reveal><div><span class="eyebrow"><i class="fa-solid fa-wave-square"></i> Centro de control</span><h1>Todo bajo<br><em>control.</em></h1><p>Una lectura rápida de las conversaciones y órdenes que llegaron a Megaprinter.</p></div><button class="refresh" @click="load"><i class="fa-solid fa-rotate"></i> Actualizar</button></header>
-    <section class="metrics" data-admin-reveal><article><div class="metric-icon blue"><i class="fa-solid fa-inbox"></i></div><div><span>Total de solicitudes</span><strong>{{ orders.length }}</strong><small>Últimos registros</small></div></article><article><div class="metric-icon green"><i class="fa-brands fa-whatsapp"></i></div><div><span>Contacto por WhatsApp</span><strong>{{ whatsappOrders }}</strong><small>Esperando al equipo</small></div></article><article><div class="metric-icon purple"><i class="fa-solid fa-credit-card"></i></div><div><span>Pagos confirmados</span><strong>{{ paidOrders }}</strong><small>Payphone aprobado</small></div></article></section>
-    <section class="activity" data-admin-reveal><header><div><span class="eyebrow"><i class="fa-solid fa-clock-rotate-left"></i> Actividad</span><h2>Lo más reciente</h2></div><router-link to="/admin/orders">Ver todos <i class="fa-solid fa-arrow-right"></i></router-link></header><div v-if="orders.length" class="timeline"><article v-for="order in orders.slice(0,6)" :key="order._id"><div class="source-icon" :class="order.source"><i :class="order.source === 'whatsapp' ? 'fa-brands fa-whatsapp' : 'fa-solid fa-credit-card'"></i></div><div class="entry-copy"><strong>{{ order.customerName }}</strong><span>{{ order.source === 'whatsapp' ? 'Solicitó contacto por WhatsApp' : 'Inició un pago con Payphone' }}</span><small>{{ new Date(order.createdAt).toLocaleString('es-EC') }}</small></div><div class="entry-amount"><strong>${{ order.totalAmount.toFixed(2) }}</strong><span :class="order.status">{{ statusLabel(order.status) }}</span></div></article></div><div v-else class="empty"><i class="fa-solid fa-chart-simple"></i><h3>Sin actividad por ahora</h3><p>Las nuevas solicitudes aparecerán aquí automáticamente.</p></div></section>
-  </main></div>
-</template>
-
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import axios from 'axios'
 import AdminNav from '@/components/AdminNav.vue'
-import { apiBase } from '@/services/api'
+import { listOrders, ORDER_STATUS_LABEL, type Order } from '@/services/orders'
+import { errorMessage } from '@/services/http'
 import { useAdminEntrance } from '@/composables/useAdminEntrance'
-interface Order { _id:string; customerName:string; totalAmount:number; source:'payphone'|'whatsapp'; status:string; createdAt:string }
-const orders=ref<Order[]>([]); const token=sessionStorage.getItem('admin-token')||''
-const page=useAdminEntrance()
-void page
-const whatsappOrders=computed(()=>orders.value.filter(order=>order.source==='whatsapp').length); const paidOrders=computed(()=>orders.value.filter(order=>order.status==='paid').length)
-const load=async()=>{orders.value=(await axios.get(`${apiBase}/orders`,{headers:{Authorization:`Bearer ${token}`}})).data}; const statusLabel=(status:string)=>({paid:'Pagado',pending:'Pendiente',cancelled:'Cancelado',whatsapp:'WhatsApp'}[status]||status); onMounted(load)
+
+useAdminEntrance()
+const orders = ref<Order[]>([])
+const loading = ref(true)
+const error = ref('')
+
+const whatsappOrders = computed(() => orders.value.filter((o) => o.source === 'whatsapp').length)
+const paidOrders = computed(() => orders.value.filter((o) => o.status === 'paid').length)
+const revenue = computed(() =>
+  orders.value.filter((o) => o.status === 'paid').reduce((sum, o) => sum + o.totalAmount, 0),
+)
+const recent = computed(() => orders.value.slice(0, 6))
+
+const formatDate = (value: string) => new Date(value).toLocaleString('es-EC')
+const statusLabel = (status: string) => ORDER_STATUS_LABEL[status] ?? status
+
+const load = async () => {
+  loading.value = true
+  error.value = ''
+  try {
+    orders.value = await listOrders()
+  } catch (caught) {
+    // Antes esta promesa se rechazaba sin manejar y el panel quedaba vacio sin
+    // explicar por que.
+    error.value = errorMessage(caught, 'No pudimos cargar los pedidos.')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
 </script>
 
+<template>
+  <div class="dashboard">
+    <AdminNav />
+
+    <main id="contenido">
+      <header class="page-header" data-admin-reveal>
+        <div>
+          <p class="eyebrow"><i class="fa-solid fa-wave-square" aria-hidden="true"></i> Centro de control</p>
+          <h1>Todo bajo<br /><em>control.</em></h1>
+          <p>Una lectura rápida de las conversaciones y órdenes que llegaron a Megaprinter.</p>
+        </div>
+        <button class="refresh" type="button" :disabled="loading" @click="load">
+          <i :class="loading ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-rotate'" aria-hidden="true"></i>
+          Actualizar
+        </button>
+      </header>
+
+      <p v-if="error" class="error" role="alert">
+        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error }}
+      </p>
+
+      <section class="metrics" data-admin-reveal>
+        <article>
+          <div class="metric-icon blue"><i class="fa-solid fa-inbox" aria-hidden="true"></i></div>
+          <div><span>Total de solicitudes</span><strong>{{ orders.length }}</strong><small>Últimos registros</small></div>
+        </article>
+        <article>
+          <div class="metric-icon green"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></div>
+          <div><span>Contacto por WhatsApp</span><strong>{{ whatsappOrders }}</strong><small>Esperando al equipo</small></div>
+        </article>
+        <article>
+          <div class="metric-icon brand"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></div>
+          <div><span>Pagos confirmados</span><strong>{{ paidOrders }}</strong><small>Payphone aprobado</small></div>
+        </article>
+        <article>
+          <div class="metric-icon amber"><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i></div>
+          <div><span>Ingresos confirmados</span><strong>${{ revenue.toFixed(2) }}</strong><small>Solo pagos aprobados</small></div>
+        </article>
+      </section>
+
+      <section class="activity" data-admin-reveal>
+        <header>
+          <div>
+            <p class="eyebrow"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Actividad</p>
+            <h2>Lo más reciente</h2>
+          </div>
+          <router-link to="/admin/orders">
+            Ver todos <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </router-link>
+        </header>
+
+        <div v-if="loading" class="state">Cargando actividad…</div>
+
+        <div v-else-if="recent.length" class="timeline">
+          <article v-for="order in recent" :key="order._id">
+            <div class="source-icon" :class="order.source">
+              <i :class="order.source === 'whatsapp' ? 'fa-brands fa-whatsapp' : 'fa-solid fa-credit-card'" aria-hidden="true"></i>
+            </div>
+            <div class="entry-copy">
+              <strong>{{ order.customerName }}</strong>
+              <span>{{ order.source === 'whatsapp' ? 'Solicitó contacto por WhatsApp' : 'Inició un pago con Payphone' }}</span>
+              <small>{{ formatDate(order.createdAt) }}</small>
+            </div>
+            <div class="entry-amount">
+              <strong>${{ order.totalAmount.toFixed(2) }}</strong>
+              <span class="status" :class="order.status">{{ statusLabel(order.status) }}</span>
+            </div>
+          </article>
+        </div>
+
+        <div v-else class="empty">
+          <i class="fa-solid fa-chart-simple" aria-hidden="true"></i>
+          <h3>Sin actividad por ahora</h3>
+          <p>Las nuevas solicitudes aparecerán aquí automáticamente.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</template>
+
 <style scoped lang="scss">
-.dashboard { min-height:100vh; background:#edf2ef; color:#18262c; }.dashboard main { max-width:1240px; margin:0 auto; padding:46px 20px 90px; }.page-header { display:flex; flex-direction:column; gap:22px; margin-bottom:30px; }.eyebrow { display:flex; align-items:center; gap:7px; color:#338cba; font-size:10px; font-weight:900; letter-spacing:1.3px; text-transform:uppercase; }.page-header h1 { margin-top:10px; font-size:clamp(3.2rem,9vw,6.7rem); line-height:.76; letter-spacing:-.1em; }.page-header h1 em { color:#2c8bb9; font-family:Georgia,serif; font-weight:400; }.page-header p { max-width:420px; margin-top:17px; color:#617176; line-height:1.6; }.refresh { align-self:flex-start; display:flex; align-items:center; gap:8px; border:0; border-radius:9px; padding:12px 14px; background:#18323c; color:#fff; font-weight:900; cursor:pointer; transition:transform .2s ease; &:hover { transform:translateY(-2px); } }.metrics { display:flex; flex-direction:column; gap:12px; }.metrics article { min-width:0; padding:18px; display:flex; align-items:center; gap:13px; border:1px solid #dce5e1; border-radius:15px; background:#fff; }.metric-icon { width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:12px; font-size:18px; }.metric-icon.blue { background:#e1f1f8; color:#2d91c2; }.metric-icon.green { background:#e5f5e9; color:#2e9b5d; }.metric-icon.purple { background:#eeeafa; color:#7060b6; }.metrics article>div:last-child { display:flex; flex:1; flex-direction:column; gap:2px; }.metrics span { color:#6b7c80; font-size:11px; font-weight:800; }.metrics strong { font-size:30px; line-height:1; letter-spacing:-.06em; }.metrics small { color:#98a6a6; font-size:10px; }.activity { margin-top:22px; padding:22px; border:1px solid #dce5e1; border-radius:16px; background:#fff; }.activity>header { display:flex; align-items:end; justify-content:space-between; gap:15px; margin-bottom:18px; }.activity h2 { margin-top:7px; font-size:25px; letter-spacing:-.05em; }.activity header>a { display:flex; gap:8px; align-items:center; color:#287fac; font-size:12px; font-weight:900; text-decoration:none; }.timeline { display:flex; flex-direction:column; }.timeline article { display:flex; align-items:center; gap:12px; padding:14px 0; border-top:1px solid #e6ece9; }.source-icon { width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:50%; }.source-icon.whatsapp { color:#2c9a5a; background:#e6f6ea; }.source-icon.payphone { color:#397dc3; background:#e6f0fa; }.entry-copy { display:flex; flex:1; flex-direction:column; gap:3px; min-width:0; }.entry-copy strong { font-size:13px; }.entry-copy span,.entry-copy small { color:#6c7c80; font-size:11px; }.entry-amount { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }.entry-amount strong { font-size:14px; }.entry-amount span { padding:3px 6px; border-radius:4px; background:#f0f3f2; color:#708087; font-size:9px; font-weight:900; text-transform:uppercase; }.entry-amount span.paid { background:#e4f5e9; color:#2d9959; }.entry-amount span.cancelled { background:#f9e6e8; color:#c8515e; }.empty { padding:55px 20px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; color:#748488; }.empty i { color:#5aa9d1; font-size:32px; }.empty h3 { color:#36494f; }.empty p { font-size:13px; }
-@media (min-width:800px) { .dashboard { padding-left:210px; }.dashboard main { padding:65px 34px 100px; }.page-header { flex-direction:row; align-items:flex-end; justify-content:space-between; }.refresh { margin-bottom:14px; }.metrics { flex-direction:row; }.metrics article { flex:1; }.activity { padding:28px; } }
+.dashboard {
+  @include admin-shell;
+}
+
+.page-header {
+  @include admin-header;
+}
+
+.eyebrow {
+  @include admin-eyebrow;
+}
+
+.refresh {
+  @include admin-refresh-button;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  margin-bottom: $space-5;
+  padding: $space-3 $space-4;
+  border: 1px solid $danger-500;
+  border-radius: $radius-sm;
+  background: $danger-100;
+  color: $danger-500;
+  font-size: $text-body-sm;
+}
+
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-3;
+
+  article {
+    @include row($space-3);
+    @include admin-card($space-5);
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+
+  > article > div:last-child {
+    @include stack(2px);
+    flex: 1;
+    min-width: 0;
+  }
+
+  span {
+    color: $text-muted;
+    font-size: $text-eyebrow;
+    font-weight: $weight-bold;
+  }
+
+  strong {
+    font-size: 1.75rem;
+    font-weight: $weight-black;
+    line-height: 1.1;
+    letter-spacing: $tracking-display;
+  }
+
+  small {
+    color: $text-muted;
+    font-size: 0.6875rem;
+  }
+}
+
+.metric-icon {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  font-size: 1.1rem;
+
+  &.blue {
+    background: $brand-100;
+    color: $brand-600;
+  }
+
+  &.green {
+    background: $accent-100;
+    color: $accent-600;
+  }
+
+  &.brand {
+    background: rgba(32, 148, 210, 0.14);
+    color: $brand-700;
+  }
+
+  &.amber {
+    background: $warning-100;
+    color: $warning-500;
+  }
+}
+
+.activity {
+  @include admin-card;
+  margin-top: $space-6;
+
+  > header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: $space-4;
+    margin-bottom: $space-5;
+
+    h2 {
+      margin-top: $space-2;
+      font-size: $text-heading;
+    }
+
+    a {
+      @include row($space-2);
+      color: $brand-600;
+      font-size: $text-caption;
+      font-weight: $weight-bold;
+      @include focus-ring;
+    }
+  }
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+
+  article {
+    @include row($space-3);
+    padding-block: $space-4;
+    border-top: 1px solid $border-subtle;
+  }
+}
+
+.source-icon {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+
+  &.whatsapp {
+    background: $accent-100;
+    color: $accent-600;
+  }
+
+  &.payphone {
+    background: $brand-100;
+    color: $brand-600;
+  }
+}
+
+.entry-copy {
+  @include stack(3px);
+  min-width: 0;
+  flex: 1;
+
+  strong {
+    font-size: $text-body-sm;
+  }
+
+  span,
+  small {
+    color: $text-muted;
+    font-size: $text-eyebrow;
+  }
+}
+
+.entry-amount {
+  @include stack($space-1);
+  align-items: flex-end;
+
+  strong {
+    font-size: $text-body-sm;
+  }
+
+  .status {
+    @include admin-status-badge;
+  }
+}
+
+.state {
+  padding-block: $space-8;
+  color: $text-muted;
+  text-align: center;
+}
+
+.empty {
+  @include empty-state;
+}
 </style>

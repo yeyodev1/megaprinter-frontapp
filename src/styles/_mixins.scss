@@ -1,0 +1,464 @@
+// =============================================================================
+// Mixins — primitivas de layout y los patrones recurrentes de la interfaz.
+// Los componentes componen esto en vez de redeclarar botones, tarjetas e inputs.
+// =============================================================================
+
+@use 'tokens' as *;
+
+// -----------------------------------------------------------------------------
+// Responsive
+// -----------------------------------------------------------------------------
+@mixin from($breakpoint) {
+  @media (min-width: $breakpoint) {
+    @content;
+  }
+}
+
+@mixin until($breakpoint) {
+  @media (max-width: $breakpoint - 1px) {
+    @content;
+  }
+}
+
+@mixin reduced-motion {
+  @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Layout
+// -----------------------------------------------------------------------------
+@mixin container($max: $content-max) {
+  width: 100%;
+  max-width: $max;
+  margin-inline: auto;
+  padding-inline: $gutter;
+}
+
+@mixin section($top: $section-y, $bottom: $section-y) {
+  padding-block: $top $bottom;
+  padding-inline: $gutter;
+}
+
+@mixin stack($gap: $space-4) {
+  display: flex;
+  flex-direction: column;
+  gap: $gap;
+}
+
+@mixin row($gap: $space-4, $align: center) {
+  display: flex;
+  align-items: $align;
+  gap: $gap;
+}
+
+// -----------------------------------------------------------------------------
+// Tipografia
+// -----------------------------------------------------------------------------
+
+/// Etiqueta de dato. Va en mono porque etiqueta informacion de taller
+/// (categorias, referencias, pasos) y eso separa el dato del discurso.
+@mixin eyebrow($color: $cyan-deep) {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-2;
+  color: $color;
+  font-family: $font-mono;
+  font-size: $text-eyebrow;
+  font-weight: $weight-medium;
+  letter-spacing: $tracking-eyebrow;
+  text-transform: uppercase;
+}
+
+@mixin display-heading($size: $text-display, $width: $width-expanded) {
+  font-family: $font-display;
+  font-size: $size;
+  font-weight: $weight-black;
+  font-stretch: $width;
+  font-variation-settings: 'wdth' #{if($width == $width-expanded, 112, if($width == $width-condensed, 88, 100))};
+  line-height: $leading-display;
+  letter-spacing: $tracking-display;
+  text-transform: none;
+
+  em {
+    font-style: normal;
+    font-weight: $weight-regular;
+    color: $cyan;
+  }
+}
+
+@mixin body-text($color: $text-body, $size: $text-body-md) {
+  color: $color;
+  font-family: $font-sans;
+  font-size: $size;
+  line-height: $leading-body;
+}
+
+@mixin mono-data($color: $text-muted, $size: $text-caption) {
+  color: $color;
+  font-family: $font-mono;
+  font-size: $size;
+  font-weight: $weight-regular;
+  letter-spacing: $tracking-mono;
+  font-variant-numeric: tabular-nums;
+}
+
+@mixin price($size: 1.5rem, $color: $text-strong) {
+  color: $color;
+  font-family: $font-mono;
+  font-size: $size;
+  font-weight: $weight-medium;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// -----------------------------------------------------------------------------
+// Elementos firma
+// -----------------------------------------------------------------------------
+
+/// Barra de calibracion CMYK. Es el divisor de seccion del sitio: reemplaza a
+/// la linea gris generica y dice de que negocio se trata sin escribirlo.
+@mixin calibration-strip($height: 4px) {
+  height: $height;
+  border: 0;
+  background: linear-gradient(
+    to right,
+    $cyan 0 25%,
+    $magenta 25% 50%,
+    $yellow 50% 75%,
+    $key-900 75% 100%
+  );
+}
+
+/// Marca de registro de imprenta. Se coloca en esquinas de bloques que hablan
+/// de precision (diagnostico, ficha tecnica).
+@mixin registration-mark($size: 18px, $color: $cyan) {
+  position: relative;
+  width: $size;
+  height: $size;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    background: $color;
+  }
+
+  &::before {
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    transform: translateY(-50%);
+  }
+
+  &::after {
+    top: 0;
+    left: 50%;
+    width: 1px;
+    height: 100%;
+    transform: translateX(-50%);
+  }
+}
+
+/// Duotono: toda fotografia se imprime a dos tintas (key + cyan). Unifica
+/// imagenes de origen dispar y las saca del terreno del banco de imagenes.
+@mixin duotone($opacity: 0.9) {
+  position: relative;
+  overflow: hidden;
+  background: $key-800;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(1) contrast(1.12) brightness(0.94);
+    opacity: $opacity;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(150deg, rgba(0, 163, 224, 0.55), rgba(12, 12, 14, 0.55));
+    mix-blend-mode: color;
+    pointer-events: none;
+  }
+}
+
+/// Textura de trama de semitono, muy sutil, para fondos oscuros amplios.
+@mixin halftone($opacity: 0.05) {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, $opacity) 1px, transparent 1px);
+    background-size: 6px 6px;
+    pointer-events: none;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Accesibilidad
+// -----------------------------------------------------------------------------
+@mixin focus-ring($color: $cyan) {
+  &:focus-visible {
+    outline: 2px solid $color;
+    outline-offset: 2px;
+    border-radius: $radius-xs;
+  }
+}
+
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+// -----------------------------------------------------------------------------
+// Superficies
+// -----------------------------------------------------------------------------
+@mixin card($padding: $space-6, $radius: $radius-md) {
+  padding: $padding;
+  border: 1px solid $border-subtle;
+  border-radius: $radius;
+  background: $surface-card;
+  box-shadow: $shadow-sm;
+}
+
+@mixin card-dark($padding: $space-6, $radius: $radius-md) {
+  padding: $padding;
+  border: 1px solid $border-on-dark;
+  border-radius: $radius;
+  background: $surface-dark-raised;
+  color: $text-on-dark;
+}
+
+@mixin hairline($color: $border-subtle) {
+  border: 0;
+  border-top: 1px solid $color;
+}
+
+// -----------------------------------------------------------------------------
+// Controles
+// -----------------------------------------------------------------------------
+@mixin button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-2;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  padding: $space-3 $space-5;
+  font-family: $font-sans;
+  font-size: $text-body-sm;
+  font-weight: $weight-semibold;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background $duration-base $ease-out, border-color $duration-base $ease-out,
+    color $duration-base $ease-out, transform $duration-base $ease-out,
+    box-shadow $duration-base $ease-out;
+  @include focus-ring;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+@mixin button-primary {
+  @include button-base;
+  background: $cyan;
+  color: $key-900;
+  box-shadow: $shadow-brand;
+
+  &:hover:not(:disabled) {
+    background: $cyan-soft;
+    transform: translateY(-2px);
+  }
+}
+
+@mixin button-secondary {
+  @include button-base;
+  border-color: $border-strong;
+  background: $surface-card;
+  color: $text-strong;
+
+  &:hover:not(:disabled) {
+    border-color: $cyan;
+    color: $cyan-dark;
+  }
+}
+
+@mixin button-ghost($color: $text-body) {
+  @include button-base;
+  background: transparent;
+  color: $color;
+  box-shadow: none;
+
+  &:hover:not(:disabled) {
+    background: $surface-sunken;
+  }
+}
+
+@mixin button-on-dark {
+  @include button-base;
+  border-color: $border-on-dark-strong;
+  background: transparent;
+  color: $text-on-dark;
+
+  &:hover:not(:disabled) {
+    border-color: $cyan;
+    background: rgba(0, 163, 224, 0.14);
+    transform: translateY(-2px);
+  }
+}
+
+@mixin button-whatsapp {
+  @include button-base;
+  border-color: rgba(37, 211, 102, 0.4);
+  background: rgba(37, 211, 102, 0.1);
+  color: #0d7a3c;
+
+  &:hover:not(:disabled) {
+    background: rgba(37, 211, 102, 0.18);
+    transform: translateY(-2px);
+  }
+}
+
+@mixin input-base {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid $border-strong;
+  border-radius: $radius-sm;
+  padding: $space-3 $space-4;
+  background: $surface-card;
+  color: $text-strong;
+  font-family: $font-sans;
+  font-size: $text-body-md;
+  outline: none;
+  transition: border-color $duration-base $ease-out, box-shadow $duration-base $ease-out;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+
+  &:focus {
+    border-color: $cyan;
+    box-shadow: 0 0 0 3px rgba(0, 163, 224, 0.18);
+  }
+
+  &:disabled {
+    background: $surface-sunken;
+    cursor: not-allowed;
+  }
+}
+
+@mixin input-on-dark {
+  @include input-base;
+  border-color: $border-on-dark;
+  background: rgba(255, 255, 255, 0.05);
+  color: $text-on-dark;
+
+  &::placeholder {
+    color: $key-300;
+  }
+
+  &:focus {
+    border-color: $cyan;
+    box-shadow: 0 0 0 3px rgba(0, 163, 224, 0.22);
+  }
+}
+
+@mixin field-label {
+  color: $text-body;
+  font-family: $font-mono;
+  font-size: $text-eyebrow;
+  font-weight: $weight-medium;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@mixin chip {
+  @include button-base;
+  border-radius: $radius-pill;
+  padding: $space-2 $space-4;
+  border-color: $border-strong;
+  background: transparent;
+  color: $text-body;
+  font-family: $font-mono;
+  font-size: $text-caption;
+  font-weight: $weight-medium;
+  box-shadow: none;
+
+  &:hover:not(:disabled) {
+    border-color: $cyan;
+    color: $cyan-dark;
+  }
+}
+
+@mixin badge($fg: $text-body, $bg: $surface-sunken) {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  width: max-content;
+  padding: 3px $space-2;
+  border-radius: $radius-xs;
+  background: $bg;
+  color: $fg;
+  font-family: $font-mono;
+  font-size: 0.6875rem;
+  font-weight: $weight-medium;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+// -----------------------------------------------------------------------------
+// Compuestos
+// -----------------------------------------------------------------------------
+@mixin empty-state {
+  @include stack($space-3);
+  align-items: center;
+  padding: $space-16 $space-6;
+  text-align: center;
+  color: $text-body;
+
+  > i {
+    color: $cyan;
+    font-size: 1.75rem;
+  }
+
+  h2,
+  h3 {
+    color: $text-strong;
+    font-family: $font-display;
+    font-size: $text-heading;
+  }
+
+  p {
+    font-size: $text-body-sm;
+    max-width: 36ch;
+  }
+}
+
+@mixin scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}

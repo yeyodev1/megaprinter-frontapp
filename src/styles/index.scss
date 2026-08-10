@@ -1,9 +1,18 @@
-@forward 'colorVariables.module.scss';
-@forward 'fonts.module.scss';
+// =============================================================================
+// Auto-injected into every component by Vite (see vite.config.ts).
+// Only tokens, mixins and functions belong here — never emitted CSS, or it
+// would be duplicated into every single component bundle.
+// =============================================================================
 
-@use "sass:color";
-@use "sass:math";
+@forward 'tokens';
+@forward 'mixins';
+@forward 'admin';
 
+@use 'sass:color';
+@use 'tokens' as *;
+
+// Sass 1.x removed the global lighten()/darken(); these shims keep the older
+// call sites working while delegating to the modern color module.
 @function _to-percent($value) {
   @if type-of($value) == 'number' and unit($value) == '%' {
     @return $value;
@@ -27,8 +36,6 @@
   @return color.adjust($c, $lightness: -$pct);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@function alpha($c, $amount) {
+  @return rgba($c, $amount);
 }
