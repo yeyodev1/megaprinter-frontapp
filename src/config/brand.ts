@@ -8,14 +8,13 @@ export const brand = {
   whatsappDisplay: '+593 99 802 8318',
   whatsappRaw: '593998028318',
   email: 'info@megaprinter.ec',
-  address: 'Tungurahua 200 y Padre Solano, esquina. Guayaquil, Ecuador',
-  addressShort: 'Tungurahua 200 y Padre Solano, esquina.',
+  locations: ['Tungurahua 103 y Padre Solano', 'Tungurahua 205 y Luis Urdaneta'],
   city: 'Guayaquil, Ecuador',
   foundedYear: 2008,
   hours: [
-    { days: 'Lunes a viernes', time: '08:00 – 18:30' },
-    { days: 'Sábados', time: '09:00 – 17:00' },
-    { days: 'Domingos', time: 'Cerrado' },
+    { days: 'Lunes a viernes', time: '08:30 – 19:00', note: '' },
+    { days: 'Sábados', time: '09:00 – 17:00', note: '' },
+    { days: 'Domingos', time: '10:00 – 14:00', note: 'Solo en Tungurahua 205' },
   ],
 }
 

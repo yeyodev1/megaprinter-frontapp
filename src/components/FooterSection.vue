@@ -13,7 +13,10 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
       <div class="footer-top">
         <div class="col brand-col">
           <BrandMark tone="light" size="lg" />
-          <p>{{ brand.addressShort }}<br />{{ brand.city }}</p>
+          <p>
+            <template v-for="site in brand.locations" :key="site">{{ site }}<br /></template>
+            {{ brand.city }}
+          </p>
           <div class="social">
             <a :href="brand.instagram" target="_blank" rel="noopener" aria-label="Instagram">
               <i class="fa-brands fa-instagram" aria-hidden="true"></i>
@@ -28,7 +31,10 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
           <h2>Horarios de atención</h2>
           <dl class="hours">
             <div v-for="slot in brand.hours" :key="slot.days">
-              <dt>{{ slot.days }}</dt>
+              <dt>
+                {{ slot.days }}
+                <span v-if="slot.note" class="note">{{ slot.note }}</span>
+              </dt>
               <dd>{{ slot.time }}</dd>
             </div>
           </dl>
@@ -49,9 +55,9 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
               <i class="fa-brands fa-instagram" aria-hidden="true"></i>
               <a :href="brand.instagram" target="_blank" rel="noopener">{{ brand.instagramHandle }}</a>
             </li>
-            <li>
+            <li v-for="site in brand.locations" :key="site">
               <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
-              <span>{{ brand.address }}</span>
+              <span>{{ site }}</span>
             </li>
           </ul>
         </div>
@@ -141,6 +147,12 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
   dt {
     color: $text-on-dark-muted;
     font-size: $text-body-sm;
+
+    .note {
+      display: block;
+      color: $cyan-soft;
+      font-size: $text-eyebrow;
+    }
   }
 
   dd {
