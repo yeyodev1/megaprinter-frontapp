@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { CatalogItem } from '@/services/catalog'
+import { categoryIcon } from '@/config/categories'
 
 const props = defineProps<{ product: CatalogItem }>()
 
 const slug = computed(() => props.product.category?.slug ?? 'general')
-const isMonitor = computed(() => slug.value === 'monitores')
+const icon = computed(() => categoryIcon(slug.value))
 const label = computed(() => props.product.name.split(' ')[0]?.toUpperCase() || 'MEGAPRINTER')
 </script>
 
@@ -19,7 +20,7 @@ const label = computed(() => props.product.name.split(' ')[0]?.toUpperCase() || 
       decoding="async"
     />
     <div v-else class="placeholder" aria-hidden="true">
-      <i :class="isMonitor ? 'fa-solid fa-desktop' : 'fa-solid fa-laptop'"></i>
+      <i :class="icon"></i>
       <span>{{ label }}</span>
     </div>
   </div>

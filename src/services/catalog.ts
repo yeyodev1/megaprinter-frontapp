@@ -30,6 +30,7 @@ export interface CatalogPayload {
   name: string
   description: string
   price: number
+  originalPrice?: number | null
   imageUrl: string
   kind: 'product' | 'service'
   active: boolean
@@ -89,5 +90,12 @@ export const uploadCatalogImage = async (file: File) => {
   return (await http.post<{ url: string }>('/catalog/uploads/image', data)).data
 }
 
+export interface ImportSummary {
+  imported: number
+  created: number
+  updated: number
+  categories: number
+}
+
 export const importOffersCatalog = async () =>
-  (await http.post<{ imported: number }>('/catalog/products/import-offers', {})).data
+  (await http.post<ImportSummary>('/catalog/products/import-offers', {})).data

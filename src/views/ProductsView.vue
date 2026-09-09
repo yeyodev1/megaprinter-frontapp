@@ -8,6 +8,7 @@ import ProductCard from '@/components/ProductCard.vue'
 import { getCatalog, type CatalogItem } from '@/services/catalog'
 import { useCartStore } from '@/stores/cart'
 import { whatsappLink } from '@/config/brand'
+import { categoriesFrom, categoryIcon } from '@/config/categories'
 
 const cartStore = useCartStore()
 const route = useRoute()
@@ -17,36 +18,73 @@ const loading = ref(true)
 const search = ref('')
 const category = ref('all')
 
-const filters = [
-  { label: 'Todo el catálogo', value: 'all' },
-  { label: 'Laptops', value: 'laptops' },
-  { label: 'Monitores', value: 'monitores' },
-]
+// Los filtros salen de las categorías que realmente tienen productos: antes
+// estaban escritos a mano (Laptops y Monitores) y cualquier categoría nueva
+// creada desde el panel quedaba invisible en la tienda.
+const filters = computed(() => [
+  { label: 'Todo el catálogo', value: 'all', icon: 'fa-solid fa-border-all' },
+  ...categoriesFrom(products.value).map((item) => ({
+    label: item.name,
+    value: item.slug,
+    icon: categoryIcon(item.slug),
+  })),
+])
 
 const advisoryLink = whatsappLink('Hola Megaprinter, quiero asesoría para elegir un equipo.')
 
+const matchesSearch = (product: CatalogItem, query: string) => {
+  if (!query) return true
+  const haystack = [
+    product.name,
+    product.description,
+    product.category.name,
+    ...(product.specifications ?? []).map((spec) => `${spec.label} ${spec.value}`),
+  ]
+    .join(' ')
+    .toLocaleLowerCase()
+  return query.split(/\s+/).every((term) => haystack.includes(term))
+}
+
 const filteredProducts = computed(() => {
   const query = search.value.trim().toLocaleLowerCase()
-  return products.value.filter((product) => {
-    const matchesCategory = category.value === 'all' || product.category.slug === category.value
-    const haystack = `${product.name} ${product.description}`.toLocaleLowerCase()
-    return matchesCategory && (!query || haystack.includes(query))
-  })
+  return products.value.filter(
+    (product) =>
+      (category.value === 'all' || product.category.slug === category.value) &&
+      matchesSearch(product, query),
+  )
 })
+
+/**
+ * Con un solo tipo de producto una lista plana bastaba; con impresoras,
+ * cámaras, laptops y monitores juntos la tienda se agrupa por categoría, cada
+ * grupo ordenado por precio para comparar de un vistazo.
+ */
+const groups = computed(() =>
+  categoriesFrom(filteredProducts.value).map((item) => ({
+    category: item,
+    items: filteredProducts.value
+      .filter((product) => product.category.slug === item.slug)
+      .sort((a, b) => a.price - b.price),
+  })),
+)
 
 const buyNow = (item: CatalogItem) =>
   cartStore.addItem({ id: item._id, name: item.name, price: item.price, image: item.imageUrl })
 
 const applyRouteFilters = () => {
   search.value = typeof route.query.q === 'string' ? route.query.q : ''
-  const requested = route.query.category
-  category.value =
-    typeof requested === 'string' && filters.some((filter) => filter.value === requested)
-      ? requested
-      : 'all'
+  category.value = typeof route.query.category === 'string' ? route.query.category : 'all'
 }
 
 watch(() => route.query, applyRouteFilters, { immediate: true })
+
+// Si la URL pide una categoría que no existe (o que quedó sin productos) se
+// vuelve a "todo" en vez de mostrar una tienda vacía.
+watch([products, filters], () => {
+  if (!loading.value && !filters.value.some((filter) => filter.value === category.value)) {
+    category.value = 'all'
+  }
+})
 
 onMounted(async () => {
   try {
@@ -80,39 +118,61 @@ onMounted(async () => {
         <label class="search">
           <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
           <span class="visually-hidden">Buscar en el catálogo</span>
-          <input v-model="search" type="search" placeholder="Busca por modelo, marca o procesador" />
+          <input v-model="search" type="search" placeholder="Busca por modelo, marca o característica" />
         </label>
-        <div class="filters">
+        <div class="filters" role="group" aria-label="Categorías">
           <button
             v-for="option in filters"
             :key="option.value"
             type="button"
             :class="{ active: category === option.value }"
+            :aria-pressed="category === option.value"
             @click="category = option.value"
           >
-            {{ option.label }}
+            <i :class="option.icon" aria-hidden="true"></i>{{ option.label }}
           </button>
         </div>
       </section>
 
-      <section class="catalog-list" aria-live="polite">
-        <template v-if="loading">
-          <div v-for="index in 6" :key="`skeleton-${index}`" class="skeleton-card">
-            <div class="skeleton media"></div>
-            <div class="skeleton-body">
-              <div class="skeleton line"></div>
-              <div class="skeleton line short"></div>
+      <div class="catalog-list" aria-live="polite">
+        <section v-if="loading" class="group" aria-label="Cargando catálogo">
+          <div class="group-grid">
+            <div v-for="index in 6" :key="`skeleton-${index}`" class="skeleton-card">
+              <div class="skeleton media"></div>
+              <div class="skeleton-body">
+                <div class="skeleton line"></div>
+                <div class="skeleton line short"></div>
+              </div>
             </div>
           </div>
-        </template>
+        </section>
 
         <template v-else>
-          <ProductCard
-            v-for="product in filteredProducts"
-            :key="product._id"
-            :product="product"
-            @buy="buyNow"
-          />
+          <p v-if="filteredProducts.length" class="result-count">
+            {{ filteredProducts.length }} {{ filteredProducts.length === 1 ? 'equipo' : 'equipos' }}
+            <template v-if="search.trim()">para “{{ search.trim() }}”</template>
+          </p>
+
+          <section
+            v-for="group in groups"
+            :key="group.category.slug"
+            class="group"
+            :aria-labelledby="`group-${group.category.slug}`"
+          >
+            <header class="group-head">
+              <span class="group-icon"><i :class="categoryIcon(group.category.slug)" aria-hidden="true"></i></span>
+              <h2 :id="`group-${group.category.slug}`">{{ group.category.name }}</h2>
+              <span class="group-count">{{ group.items.length }}</span>
+            </header>
+            <div class="group-grid">
+              <ProductCard
+                v-for="product in group.items"
+                :key="product._id"
+                :product="product"
+                @buy="buyNow"
+              />
+            </div>
+          </section>
 
           <div v-if="!filteredProducts.length" class="empty">
             <i class="fa-solid fa-box-open" aria-hidden="true"></i>
@@ -121,7 +181,7 @@ onMounted(async () => {
             <a :href="advisoryLink" target="_blank" rel="noopener">Consultar por WhatsApp</a>
           </div>
         </template>
-      </section>
+      </div>
     </main>
 
     <FooterSection />
@@ -229,11 +289,51 @@ h1 {
 
 .catalog-list {
   @include container;
+  @include stack($space-10);
+  padding-block: $space-8 $space-20;
+}
+
+.result-count {
+  @include mono-data($text-muted, $text-caption);
+}
+
+.group {
+  @include stack($space-5);
+}
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding-bottom: $space-3;
+  border-bottom: 1px solid $border-subtle;
+
+  h2 {
+    @include display-heading($text-heading);
+  }
+}
+
+.group-icon {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  background: $brand-100;
+  color: $brand-600;
+}
+
+.group-count {
+  @include badge($brand-700, $brand-100);
+}
+
+.group-grid {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   gap: $space-5;
-  padding-block: $space-10 $space-20;
 }
 
 .empty {

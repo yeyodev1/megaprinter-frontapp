@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import ProductMedia from '@/components/ProductMedia.vue'
 import type { CatalogItem } from '@/services/catalog'
+import { discountPercent } from '@/config/categories'
 
-defineProps<{ product: CatalogItem }>()
+const props = defineProps<{ product: CatalogItem }>()
 const emit = defineEmits<{ buy: [product: CatalogItem] }>()
+
+const discount = computed(() => discountPercent(props.product.price, props.product.originalPrice))
 </script>
 
 <template>
@@ -11,6 +15,7 @@ const emit = defineEmits<{ buy: [product: CatalogItem] }>()
     <router-link :to="`/productos/${product.slug || product._id}`" class="media-link">
       <ProductMedia :product="product" />
       <span class="tag">{{ product.category.name }}</span>
+      <span v-if="discount" class="discount">-{{ discount }}%</span>
     </router-link>
 
     <div class="product-body">
@@ -71,6 +76,14 @@ const emit = defineEmits<{ buy: [product: CatalogItem] }>()
     position: absolute;
     top: $space-3;
     left: $space-3;
+    box-shadow: $shadow-xs;
+  }
+
+  .discount {
+    @include badge($white, $accent-500);
+    position: absolute;
+    top: $space-3;
+    right: $space-3;
     box-shadow: $shadow-xs;
   }
 }

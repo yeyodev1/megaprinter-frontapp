@@ -3,18 +3,31 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getCatalog, type CatalogItem } from '@/services/catalog'
 import ProductMedia from '@/components/ProductMedia.vue'
+import { categoriesFrom, categoryIcon } from '@/config/categories'
 
 const router = useRouter()
 const query = ref('')
 const products = ref<CatalogItem[]>([])
 const loading = ref(true)
 
-const categories = [
-  { name: 'Laptops', slug: 'laptops', icon: 'fa-solid fa-laptop' },
-  { name: 'Monitores', slug: 'monitores', icon: 'fa-solid fa-desktop' },
-]
+// Accesos directos a las categorías que tienen productos publicados, en el
+// mismo orden que la tienda. Antes solo existían Laptops y Monitores.
+const categories = computed(() =>
+  categoriesFrom(products.value).map((item) => ({ ...item, icon: categoryIcon(item.slug) })),
+)
 
-const featured = computed(() => products.value.slice(0, 3))
+// Un destacado por categoría (el más económico) para que la portada muestre la
+// variedad del catálogo y no tres equipos del mismo tipo.
+const featured = computed(() =>
+  categories.value
+    .map((item) =>
+      products.value
+        .filter((product) => product.category.slug === item.slug)
+        .sort((a, b) => a.price - b.price)[0],
+    )
+    .filter((product): product is CatalogItem => !!product)
+    .slice(0, 4),
+)
 
 const searchCatalog = () =>
   router.push({ path: '/products', query: query.value.trim() ? { q: query.value.trim() } : {} })

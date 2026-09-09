@@ -16,6 +16,7 @@ const emptyForm = (): Required<CatalogPayload> => ({
   name: '',
   description: '',
   price: 0,
+  originalPrice: null,
   imageUrl: '',
   kind: 'product',
   active: true,
@@ -36,6 +37,7 @@ watch(
       name: item.name,
       description: item.description,
       price: item.price,
+      originalPrice: item.originalPrice ?? null,
       imageUrl: item.imageUrl,
       kind: item.kind,
       active: item.active,
@@ -51,6 +53,8 @@ const submit = () => {
     ...form,
     name: form.name.trim(),
     description: form.description.trim(),
+    // Un campo numérico vacío llega como '' o null: ambos significan "sin oferta".
+    originalPrice: form.originalPrice ? Number(form.originalPrice) : null,
     specifications: form.specifications.filter(
       (spec) => spec.label.trim() && spec.value.trim(),
     ),
@@ -87,6 +91,20 @@ const submit = () => {
           <div class="input-icon">
             <i class="fa-solid fa-dollar-sign" aria-hidden="true"></i>
             <input v-model.number="form.price" type="number" min="0" step="0.01" required />
+          </div>
+        </label>
+
+        <label class="field">
+          <span>Precio anterior <small>(opcional)</small></span>
+          <div class="input-icon">
+            <i class="fa-solid fa-tag" aria-hidden="true"></i>
+            <input
+              v-model.number="form.originalPrice"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Se muestra tachado"
+            />
           </div>
         </label>
 

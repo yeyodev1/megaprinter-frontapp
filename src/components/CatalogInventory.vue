@@ -1,15 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { CatalogItem } from '@/services/catalog'
+import { categoriesFrom } from '@/config/categories'
 
 const props = defineProps<{ items: CatalogItem[]; loading: boolean; deletingId: string }>()
 const emit = defineEmits<{ edit: [item: CatalogItem]; remove: [id: string] }>()
 
 const filter = ref<'all' | 'product' | 'service'>('all')
+const categoryFilter = ref('all')
+const search = ref('')
 
-const filteredItems = computed(() =>
-  filter.value === 'all' ? props.items : props.items.filter((item) => item.kind === filter.value),
-)
+const categories = computed(() => categoriesFrom(props.items))
+
+// Con más de cincuenta publicaciones la lista plana dejó de ser manejable:
+// se filtra por tipo, categoría y texto.
+const filteredItems = computed(() => {
+  const query = search.value.trim().toLocaleLowerCase()
+  return props.items.filter(
+    (item) =>
+      (filter.value === 'all' || item.kind === filter.value) &&
+      (categoryFilter.value === 'all' || item.category.slug === categoryFilter.value) &&
+      (!query || `${item.name} ${item.description}`.toLocaleLowerCase().includes(query)),
+  )
+})
 </script>
 
 <template>
@@ -24,6 +37,24 @@ const filteredItems = computed(() =>
         <button type="button" :class="{ active: filter === 'product' }" @click="filter = 'product'">Productos</button>
         <button type="button" :class="{ active: filter === 'service' }" @click="filter = 'service'">Servicios</button>
       </div>
+    </div>
+
+    <div class="toolbar">
+      <label class="search">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        <span class="visually-hidden">Buscar publicación</span>
+        <input v-model="search" type="search" placeholder="Buscar por nombre" />
+      </label>
+      <label class="category-select">
+        <span class="visually-hidden">Filtrar por categoría</span>
+        <select v-model="categoryFilter">
+          <option value="all">Todas las categorías</option>
+          <option v-for="category in categories" :key="category.slug" :value="category.slug">
+            {{ category.name }}
+          </option>
+        </select>
+      </label>
+      <span class="count">{{ filteredItems.length }} de {{ items.length }}</span>
     </div>
 
     <div v-if="loading" class="empty">
@@ -43,7 +74,10 @@ const filteredItems = computed(() =>
           <span>{{ item.kind === 'product' ? 'Producto' : 'Servicio' }} · {{ item.category.name }}</span>
           <h3>{{ item.name }}</h3>
           <p>{{ item.description }}</p>
-          <strong>${{ item.price.toFixed(2) }}</strong>
+          <strong>
+            ${{ item.price.toFixed(2) }}
+            <small v-if="item.originalPrice">antes ${{ item.originalPrice.toFixed(2) }}</small>
+          </strong>
         </div>
 
         <div class="item-actions">
@@ -105,6 +139,49 @@ const filteredItems = computed(() =>
       color: $white;
     }
   }
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-2;
+  margin-bottom: $space-2;
+}
+
+.search {
+  @include row($space-2);
+  min-width: 220px;
+  flex: 1;
+  padding: $space-2 $space-3;
+  border: 1px solid $border-strong;
+  border-radius: $radius-sm;
+  color: $brand-600;
+
+  &:focus-within {
+    border-color: $brand-500;
+  }
+
+  input {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: $text-strong;
+    font: inherit;
+    font-size: $text-body-sm;
+    outline: none;
+  }
+}
+
+.category-select select {
+  @include input-base;
+  padding: $space-2 $space-3;
+  font-size: $text-body-sm;
+}
+
+.count {
+  @include mono-data($text-muted, $text-eyebrow);
+  margin-left: auto;
 }
 
 .item-list {
@@ -179,6 +256,14 @@ const filteredItems = computed(() =>
   strong {
     color: $brand-700;
     font-size: $text-body-md;
+
+    small {
+      margin-left: $space-2;
+      color: $text-muted;
+      font-size: $text-eyebrow;
+      font-weight: $weight-medium;
+      text-decoration: line-through;
+    }
   }
 }
 

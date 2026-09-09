@@ -110,11 +110,16 @@ const removeCategory = async (id: string) => {
 }
 
 const loadOffers = async () => {
-  if (!confirm('Se cargarán o actualizarán las ofertas del catálogo base. ¿Continuar?')) return
+  if (
+    !confirm(
+      'Se cargarán las ofertas del catálogo base (laptops, monitores, impresoras y cámaras). Los productos con el mismo nombre se actualizarán con el precio, la foto y la ficha del catálogo. ¿Continuar?',
+    )
+  )
+    return
   importing.value = true
   try {
-    const { imported } = await importOffersCatalog()
-    report(`${imported} ofertas cargadas correctamente.`, 'ok')
+    const { imported, created, updated } = await importOffersCatalog()
+    report(`${imported} ofertas sincronizadas: ${created} nuevas y ${updated} actualizadas.`, 'ok')
     await load()
   } catch (caught) {
     report(errorMessage(caught, 'No se pudieron cargar las ofertas.'), 'error')
