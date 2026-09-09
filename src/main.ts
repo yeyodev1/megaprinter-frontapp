@@ -13,7 +13,7 @@ app.use(router)
 
 // El interceptor HTTP emite este evento cuando el backend responde 401. Antes
 // la promesa quedaba rechazada sin dueno y el panel se quedaba en blanco al
-// expirar el token de 8 horas.
+// expirar el token (30 días).
 const auth = useAuthStore(pinia)
 window.addEventListener('auth:expired', () => {
   auth.logout()

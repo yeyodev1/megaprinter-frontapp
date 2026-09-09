@@ -10,11 +10,24 @@ export const http = axios.create({ baseURL: apiBase, timeout: 20000 })
 
 export const ADMIN_TOKEN_KEY = 'admin-token'
 
-export const getAdminToken = () => sessionStorage.getItem(ADMIN_TOKEN_KEY) || ''
+// La sesion se guarda en localStorage para sobrevivir al cierre de la pestana
+// o del navegador; solo "Salir" (o un 401 del backend) la elimina.
+const storage = () => {
+  try {
+    return window.localStorage
+  } catch {
+    return window.sessionStorage
+  }
+}
 
-export const setAdminToken = (token: string) => sessionStorage.setItem(ADMIN_TOKEN_KEY, token)
+export const getAdminToken = () => storage().getItem(ADMIN_TOKEN_KEY) || ''
 
-export const clearAdminToken = () => sessionStorage.removeItem(ADMIN_TOKEN_KEY)
+export const setAdminToken = (token: string) => storage().setItem(ADMIN_TOKEN_KEY, token)
+
+export const clearAdminToken = () => {
+  storage().removeItem(ADMIN_TOKEN_KEY)
+  sessionStorage.removeItem(ADMIN_TOKEN_KEY)
+}
 
 http.interceptors.request.use((config) => {
   const token = getAdminToken()
