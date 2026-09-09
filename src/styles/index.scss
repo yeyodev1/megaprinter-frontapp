@@ -9,12 +9,14 @@
 @forward 'admin';
 
 @use 'sass:color';
+@use 'sass:math';
+@use 'sass:meta';
 @use 'tokens' as *;
 
 // Sass 1.x removed the global lighten()/darken(); these shims keep the older
 // call sites working while delegating to the modern color module.
 @function _to-percent($value) {
-  @if type-of($value) == 'number' and unit($value) == '%' {
+  @if meta.type-of($value) == 'number' and math.unit($value) == '%' {
     @return $value;
   }
   @return $value * 1%;

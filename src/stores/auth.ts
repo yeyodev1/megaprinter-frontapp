@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { clearAdminToken, getAdminToken, http, setAdminToken } from '@/services/http'
+import { getCurrentUser } from '@/services/users'
 
 export interface AdminUser {
   id: string
@@ -33,6 +34,16 @@ export const useAuthStore = defineStore('auth', {
       this.token = data.token
       this.user = data.user
       setAdminToken(data.token)
+    },
+
+    /** Recupera el perfil tras recargar la página (el token sobrevive, el usuario no). */
+    async loadUser() {
+      if (this.user || !this.token) return
+      try {
+        this.user = await getCurrentUser()
+      } catch {
+        // El interceptor ya gestiona el 401; cualquier otro fallo no bloquea el panel.
+      }
     },
 
     logout() {

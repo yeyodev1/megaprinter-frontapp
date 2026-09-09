@@ -74,6 +74,9 @@ export const getCatalog = async (kind?: 'product' | 'service', admin = false) =>
 export const createCategory = async (name: string) =>
   (await http.post<Category>('/catalog/categories', { name })).data
 
+export const updateCategory = async (id: string, name: string) =>
+  (await http.put<Category>(`/catalog/categories/${id}`, { name })).data
+
 export const deleteCategory = (id: string) => http.delete(`/catalog/categories/${id}`)
 
 export const createCatalogItem = async (payload: CatalogPayload) =>

@@ -72,11 +72,19 @@
 }
 
 @mixin display-heading($size: $text-display, $width: $width-expanded) {
+  // `if()` como funcion esta obsoleto en Sass moderno; se resuelve con @if.
+  $wdth: 100;
+  @if $width == $width-expanded {
+    $wdth: 112;
+  } @else if $width == $width-condensed {
+    $wdth: 88;
+  }
+
   font-family: $font-display;
   font-size: $size;
   font-weight: $weight-black;
   font-stretch: $width;
-  font-variation-settings: 'wdth' #{if($width == $width-expanded, 112, if($width == $width-condensed, 88, 100))};
+  font-variation-settings: 'wdth' #{$wdth};
   line-height: $leading-display;
   letter-spacing: $tracking-display;
   text-transform: none;

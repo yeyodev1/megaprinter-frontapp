@@ -145,10 +145,13 @@ defineExpose({ uploading })
   border-radius: $radius-md;
   background: $surface-sunken;
 
+  // Las fotos del catálogo son recortes con fondo transparente: con `cover`
+  // se ampliaban y recortaban; con `contain` se ven completas.
   img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    padding: $space-3;
+    object-fit: contain;
   }
 
   button {

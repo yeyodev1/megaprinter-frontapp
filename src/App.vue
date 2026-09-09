@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PaymentModal from '@/components/PaymentModal.vue'
+import DialogHost from '@/components/ui/DialogHost.vue'
 </script>
 
 <template>
@@ -11,6 +12,7 @@ import PaymentModal from '@/components/PaymentModal.vue'
       </transition>
     </router-view>
     <PaymentModal />
+    <DialogHost />
   </div>
 </template>
 

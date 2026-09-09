@@ -40,7 +40,10 @@ const goToCatalog = () => {
         <div v-if="!cartStore.isEmpty" class="drawer-content">
           <div class="cart-list">
             <article v-for="item in cartStore.items" :key="item.id" class="cart-item">
-              <div class="item-mark"><i class="fa-solid fa-cube" aria-hidden="true"></i></div>
+              <div class="item-mark" aria-hidden="true">
+                <img v-if="item.image" :src="item.image" alt="" loading="lazy" />
+                <i v-else class="fa-solid fa-cube"></i>
+              </div>
 
               <div class="item-copy">
                 <h3>{{ item.name }}</h3>
@@ -188,14 +191,22 @@ const goToCatalog = () => {
 
 .item-mark {
   display: flex;
-  width: 38px;
-  height: 38px;
+  width: 52px;
+  height: 52px;
   flex: none;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   border-radius: $radius-sm;
-  background: rgba(32, 148, 210, 0.16);
-  color: $brand-300;
+  background: $paper-white;
+  color: $brand-500;
+
+  img {
+    width: 100%;
+    height: 100%;
+    padding: 3px;
+    object-fit: contain;
+  }
 }
 
 .item-copy {

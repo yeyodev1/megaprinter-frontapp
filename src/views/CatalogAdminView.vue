@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import AdminNav from '@/components/AdminNav.vue'
-import CatalogEditorForm from '@/components/CatalogEditorForm.vue'
 import CatalogInventory from '@/components/CatalogInventory.vue'
+import CatalogEditorModal, { type EditorMode } from '@/components/admin/CatalogEditorModal.vue'
+import CategoryManager from '@/components/admin/CategoryManager.vue'
 import {
   createCatalogItem,
-  createCategory,
   deleteCatalogItem,
-  deleteCategory,
   getCatalog,
   getCategories,
   importOffersCatalog,
@@ -18,111 +16,127 @@ import {
 } from '@/services/catalog'
 import { errorMessage } from '@/services/http'
 import { useAdminEntrance } from '@/composables/useAdminEntrance'
+import { useDialogStore } from '@/stores/dialog'
 
 useAdminEntrance()
+const dialog = useDialogStore()
 
 const categories = ref<Category[]>([])
 const items = ref<CatalogItem[]>([])
-const editing = ref<CatalogItem | null>(null)
-const newCategory = ref('')
 
 const loading = ref(true)
 const saving = ref(false)
 const importing = ref(false)
-const categorySaving = ref(false)
-const deletingId = ref('')
-const notice = ref({ text: '', kind: '' as 'ok' | 'error' | '' })
+const busyId = ref('')
+const notice = ref('')
 
-const report = (text: string, kind: 'ok' | 'error') => {
-  notice.value = { text, kind }
-}
+const editorOpen = ref(false)
+const editorMode = ref<EditorMode>('create')
+const editorSource = ref<CatalogItem | null>(null)
+const categoriesOpen = ref(false)
+
+const fail = (caught: unknown, fallback: string) =>
+  dialog.notify({ title: 'No se pudo completar', message: errorMessage(caught, fallback), tone: 'danger' })
 
 const load = async () => {
   loading.value = true
   try {
-    ;[categories.value, items.value] = await Promise.all([
-      getCategories(),
-      getCatalog(undefined, true),
-    ])
+    ;[categories.value, items.value] = await Promise.all([getCategories(), getCatalog(undefined, true)])
   } catch (caught) {
-    report(errorMessage(caught, 'No pudimos cargar el catálogo.'), 'error')
+    await fail(caught, 'No pudimos cargar el catálogo.')
   } finally {
     loading.value = false
   }
 }
 
+const openEditor = (mode: EditorMode, source: CatalogItem | null = null) => {
+  editorMode.value = mode
+  editorSource.value = source
+  editorOpen.value = true
+}
+
 const save = async (payload: CatalogPayload) => {
   saving.value = true
   try {
-    if (editing.value) await updateCatalogItem(editing.value._id, payload)
-    else await createCatalogItem(payload)
-    editing.value = null
-    report('Publicación guardada.', 'ok')
+    if (editorMode.value === 'edit' && editorSource.value) {
+      await updateCatalogItem(editorSource.value._id, payload)
+      notice.value = `"${payload.name}" se actualizó correctamente.`
+    } else {
+      await createCatalogItem(payload)
+      notice.value = payload.active
+        ? `"${payload.name}" ya está publicado en el sitio.`
+        : `"${payload.name}" se guardó como borrador.`
+    }
+    editorOpen.value = false
     await load()
   } catch (caught) {
-    report(errorMessage(caught, 'No se pudo guardar la publicación.'), 'error')
+    await fail(caught, 'No se pudo guardar la publicación.')
   } finally {
     saving.value = false
   }
 }
 
-const edit = (item: CatalogItem) => {
-  editing.value = item
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-const removeItem = async (id: string) => {
-  if (!confirm('¿Eliminar esta publicación?')) return
-  deletingId.value = id
+const toggleActive = async (item: CatalogItem) => {
+  const publishing = !item.active
+  const confirmed = await dialog.confirm({
+    title: publishing ? '¿Publicar en el sitio?' : '¿Ocultar del sitio?',
+    message: publishing
+      ? 'Los clientes podrán ver y comprar esta publicación de inmediato.'
+      : 'La publicación dejará de verse en la tienda, pero se conserva en el panel como borrador.',
+    detail: item.name,
+    confirmLabel: publishing ? 'Publicar' : 'Despublicar',
+    tone: publishing ? 'success' : 'warning',
+  })
+  if (!confirmed) return
+  busyId.value = item._id
   try {
-    await deleteCatalogItem(id)
-    if (editing.value?._id === id) editing.value = null
+    await updateCatalogItem(item._id, { active: publishing } as CatalogPayload)
+    notice.value = publishing ? `"${item.name}" ya está visible en la tienda.` : `"${item.name}" pasó a borrador.`
     await load()
   } catch (caught) {
-    report(errorMessage(caught, 'No se pudo eliminar la publicación.'), 'error')
+    await fail(caught, 'No se pudo cambiar el estado de la publicación.')
   } finally {
-    deletingId.value = ''
+    busyId.value = ''
   }
 }
 
-const addCategory = async () => {
-  categorySaving.value = true
+const removeItem = async (item: CatalogItem) => {
+  const confirmed = await dialog.confirm({
+    title: '¿Eliminar esta publicación?',
+    message: 'Desaparecerá del sitio y del panel. Esta acción no se puede deshacer.',
+    detail: item.name,
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  })
+  if (!confirmed) return
+  busyId.value = item._id
   try {
-    await createCategory(newCategory.value.trim())
-    newCategory.value = ''
+    await deleteCatalogItem(item._id)
+    notice.value = `"${item.name}" se eliminó.`
     await load()
   } catch (caught) {
-    report(errorMessage(caught, 'No se pudo crear la categoría.'), 'error')
+    await fail(caught, 'No se pudo eliminar la publicación.')
   } finally {
-    categorySaving.value = false
-  }
-}
-
-const removeCategory = async (id: string) => {
-  if (!confirm('¿Eliminar esta categoría?')) return
-  try {
-    await deleteCategory(id)
-    await load()
-  } catch (caught) {
-    // El backend responde 409 cuando la categoria todavia tiene productos.
-    report(errorMessage(caught, 'No se pudo eliminar la categoría.'), 'error')
+    busyId.value = ''
   }
 }
 
 const loadOffers = async () => {
-  if (
-    !confirm(
-      'Se cargarán las ofertas del catálogo base (laptops, monitores, impresoras y cámaras). Los productos con el mismo nombre se actualizarán con el precio, la foto y la ficha del catálogo. ¿Continuar?',
-    )
-  )
-    return
+  const confirmed = await dialog.confirm({
+    title: 'Cargar ofertas base',
+    message:
+      'Se sincronizará el catálogo de ofertas (laptops, monitores, impresoras y cámaras). Las publicaciones con el mismo nombre se actualizarán con el precio, la foto y la ficha del catálogo base.',
+    confirmLabel: 'Sincronizar',
+    icon: 'fa-solid fa-file-arrow-up',
+  })
+  if (!confirmed) return
   importing.value = true
   try {
     const { imported, created, updated } = await importOffersCatalog()
-    report(`${imported} ofertas sincronizadas: ${created} nuevas y ${updated} actualizadas.`, 'ok')
+    notice.value = `${imported} ofertas sincronizadas: ${created} nuevas y ${updated} actualizadas.`
     await load()
   } catch (caught) {
-    report(errorMessage(caught, 'No se pudieron cargar las ofertas.'), 'error')
+    await fail(caught, 'No se pudieron cargar las ofertas.')
   } finally {
     importing.value = false
   }
@@ -133,88 +147,80 @@ onMounted(load)
 
 <template>
   <div class="catalog-admin">
-    <AdminNav />
+    <header class="page-header" data-admin-reveal>
+      <div>
+        <p class="eyebrow"><i class="fa-solid fa-sparkles" aria-hidden="true"></i> Gestión de catálogo</p>
+        <h1>Construye tu<br /><em>vitrina digital.</em></h1>
+        <p>Crea, edita, publica o retira productos y servicios. Todo lo que guardes aparece de inmediato en el sitio.</p>
+      </div>
 
-    <main id="contenido">
-      <header class="page-header" data-admin-reveal>
-        <div>
-          <p class="eyebrow"><i class="fa-solid fa-sparkles" aria-hidden="true"></i> Gestión de catálogo</p>
-          <h1>Construye tu<br /><em>vitrina digital.</em></h1>
-          <p>Publica productos y servicios que aparecen directamente en el sitio web.</p>
-        </div>
-
-        <div class="header-side">
-          <button class="import" type="button" :disabled="importing || loading" @click="loadOffers">
-            <i :class="importing ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-file-arrow-up'" aria-hidden="true"></i>
-            {{ importing ? 'Actualizando…' : 'Cargar ofertas base' }}
+      <div class="header-side">
+        <div class="actions">
+          <button class="primary" type="button" :disabled="loading" @click="openEditor('create')">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i> Nuevo producto
           </button>
-          <div class="header-metric">
-            <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
-            <strong>{{ items.length }}</strong>
-            <span>publicaciones</span>
-          </div>
+          <button class="secondary" type="button" :disabled="loading" @click="categoriesOpen = true">
+            <i class="fa-solid fa-shapes" aria-hidden="true"></i> Categorías
+          </button>
+          <button class="secondary" type="button" :disabled="importing || loading" @click="loadOffers">
+            <i :class="importing ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-file-arrow-up'" aria-hidden="true"></i>
+            {{ importing ? 'Sincronizando…' : 'Cargar ofertas base' }}
+          </button>
         </div>
-      </header>
+        <div class="header-metric">
+          <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
+          <strong>{{ items.length }}</strong>
+          <span>publicaciones · {{ items.filter((item) => item.active).length }} visibles</span>
+        </div>
+      </div>
+    </header>
 
-      <p v-if="notice.text" class="notice" :class="notice.kind" role="status">{{ notice.text }}</p>
+    <p v-if="notice" class="notice ok" role="status">
+      <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+      <span>{{ notice }}</span>
+      <button type="button" aria-label="Cerrar aviso" @click="notice = ''">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
+    </p>
 
-      <section class="workspace" data-admin-reveal>
-        <CatalogEditorForm
-          :categories="categories"
-          :editing="editing"
-          :saving="saving"
-          @save="save"
-          @cancel="editing = null"
-        />
+    <CatalogInventory
+      :items="items"
+      :loading="loading"
+      :busy-id="busyId"
+      @edit="openEditor('edit', $event)"
+      @duplicate="openEditor('duplicate', $event)"
+      @toggle="toggleActive"
+      @remove="removeItem"
+    />
 
-        <aside class="sidebar">
-          <div class="side-title">
-            <div><span>Organización</span><h2>Categorías</h2></div>
-            <i class="fa-solid fa-shapes" aria-hidden="true"></i>
-          </div>
+    <CatalogEditorModal
+      :open="editorOpen"
+      :mode="editorMode"
+      :source="editorSource"
+      :categories="categories"
+      :saving="saving"
+      @save="save"
+      @close="editorOpen = false"
+    />
 
-          <form class="category-form" @submit.prevent="addCategory">
-            <input v-model="newCategory" placeholder="Nueva categoría" required :disabled="categorySaving" />
-            <button :disabled="categorySaving" aria-label="Agregar categoría">
-              <i :class="categorySaving ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-plus'" aria-hidden="true"></i>
-            </button>
-          </form>
-
-          <div class="category-list">
-            <div v-for="category in categories" :key="category._id">
-              <span><i class="fa-solid fa-folder" aria-hidden="true"></i>{{ category.name }}</span>
-              <button type="button" aria-label="Eliminar categoría" @click="removeCategory(category._id)">
-                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
-              </button>
-            </div>
-            <p v-if="!categories.length">Crea tu primera categoría para comenzar.</p>
-          </div>
-
-          <p class="tip">
-            <i class="fa-solid fa-lightbulb" aria-hidden="true"></i>
-            Las categorías organizan el catálogo y facilitan la navegación de tus clientes.
-          </p>
-        </aside>
-      </section>
-
-      <CatalogInventory
-        :items="items"
-        :loading="loading"
-        :deleting-id="deletingId"
-        @edit="edit"
-        @remove="removeItem"
-      />
-    </main>
+    <CategoryManager
+      :open="categoriesOpen"
+      :categories="categories"
+      :items="items"
+      @close="categoriesOpen = false"
+      @changed="load"
+    />
   </div>
 </template>
 
 <style scoped lang="scss">
 .catalog-admin {
-  @include admin-shell;
+  @include admin-page;
 }
 
 .page-header {
   @include admin-header;
+  margin-bottom: 0;
 }
 
 .eyebrow {
@@ -226,125 +232,46 @@ onMounted(load)
   align-items: flex-start;
 }
 
-.import {
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+}
+
+.primary {
+  @include button-primary;
+}
+
+.secondary {
   @include button-secondary;
 }
 
 .header-metric {
   @include admin-stat-card;
+  width: auto;
+  min-width: 150px;
 }
 
 .notice {
-  margin-bottom: $space-5;
-  padding: $space-3 $space-4;
-  border-radius: $radius-sm;
-  font-size: $text-body-sm;
-  font-weight: $weight-semibold;
-
-  &.ok {
-    background: $success-100;
-    color: $success-500;
-  }
-
-  &.error {
-    background: $danger-100;
-    color: $danger-500;
-  }
-}
-
-.workspace {
-  @include stack($space-5);
-}
-
-.sidebar {
-  @include admin-card;
-}
-
-.side-title {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  @include admin-notice;
+  align-items: center;
 
   span {
-    @include eyebrow;
-  }
-
-  h2 {
-    margin-top: 2px;
-    font-size: $text-subheading;
-  }
-
-  > i {
-    color: $brand-400;
-    font-size: 1.35rem;
-  }
-}
-
-.category-form {
-  display: flex;
-  gap: $space-2;
-  margin: $space-5 0 $space-3;
-
-  input {
-    @include input-base;
+    flex: 1;
   }
 
   button {
-    @include button-primary;
-    width: 44px;
-    flex: none;
-    padding: 0;
-  }
-}
-
-.category-list {
-  display: flex;
-  flex-direction: column;
-
-  > div {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-block: $space-3;
-    border-top: 1px solid $border-subtle;
-  }
-
-  span {
-    @include row($space-2);
-    font-size: $text-body-sm;
-    font-weight: $weight-semibold;
-
-    i {
-      color: $brand-500;
-    }
-  }
-
-  button {
-    @include button-ghost($text-muted);
-    padding: $space-1 $space-2;
+    padding: $space-1;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+    @include focus-ring;
 
     &:hover {
-      color: $danger-500;
+      opacity: 1;
     }
   }
-
-  p {
-    padding-block: $space-4;
-    color: $text-muted;
-    font-size: $text-caption;
-  }
-}
-
-.tip {
-  display: flex;
-  gap: $space-2;
-  margin-top: $space-5;
-  padding: $space-3;
-  border-radius: $radius-sm;
-  background: $brand-100;
-  color: $brand-700;
-  font-size: $text-eyebrow;
-  line-height: $leading-body;
 }
 
 @include from($bp-md) {
@@ -352,17 +279,8 @@ onMounted(load)
     align-items: flex-end;
   }
 
-  .workspace {
-    flex-direction: row;
-    align-items: flex-start;
-
-    > :first-child {
-      flex: 1.5;
-    }
-  }
-
-  .sidebar {
-    flex: 1;
+  .actions {
+    justify-content: flex-end;
   }
 }
 </style>

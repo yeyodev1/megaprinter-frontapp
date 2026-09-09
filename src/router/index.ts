@@ -46,27 +46,34 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     path: '/admin',
-    name: 'AdminDashboard',
-    component: () => import('../views/AdminDashboardView.vue'),
-    meta: { title: 'Panel interno', requiresAdmin: true },
-  },
-  {
-    path: '/admin/catalog',
-    name: 'CatalogAdmin',
-    component: () => import('../views/CatalogAdminView.vue'),
-    meta: { title: 'Administrar catálogo', requiresAdmin: true },
-  },
-  {
-    path: '/admin/orders',
-    name: 'AdminOrders',
-    component: () => import('../views/OrdersAdminView.vue'),
-    meta: { title: 'Pedidos', requiresAdmin: true },
-  },
-  {
-    path: '/admin/users',
-    name: 'AdminUsers',
-    component: () => import('../views/UsersAdminView.vue'),
-    meta: { title: 'Usuarios internos', requiresAdmin: true },
+    component: () => import('../layout/AdminLayout.vue'),
+    meta: { requiresAdmin: true },
+    children: [
+      {
+        path: '',
+        name: 'AdminDashboard',
+        component: () => import('../views/AdminDashboardView.vue'),
+        meta: { title: 'Panel interno' },
+      },
+      {
+        path: 'catalog',
+        name: 'CatalogAdmin',
+        component: () => import('../views/CatalogAdminView.vue'),
+        meta: { title: 'Administrar catálogo' },
+      },
+      {
+        path: 'orders',
+        name: 'AdminOrders',
+        component: () => import('../views/OrdersAdminView.vue'),
+        meta: { title: 'Pedidos' },
+      },
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('../views/UsersAdminView.vue'),
+        meta: { title: 'Usuarios internos' },
+      },
+    ],
   },
   {
     path: '/:pathMatch(.*)*',
@@ -88,7 +95,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (to.meta.requiresAdmin && !getAdminToken()) {
+  if (to.matched.some((record) => record.meta.requiresAdmin) && !getAdminToken()) {
     // `redirect` permite volver a la pagina pedida despues de iniciar sesion.
     return { name: 'Login', query: { redirect: to.fullPath } }
   }

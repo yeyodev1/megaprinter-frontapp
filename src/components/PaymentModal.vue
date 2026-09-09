@@ -4,6 +4,8 @@ import { useCartStore } from '@/stores/cart'
 import { useScrollLock } from '@/composables/useScrollLock'
 import OrderSummary from '@/components/OrderSummary.vue'
 import PaymentCustomerForm, { type CustomerDetails } from '@/components/PaymentCustomerForm.vue'
+import CheckoutSteps from '@/components/checkout/CheckoutSteps.vue'
+import PayphoneStage from '@/components/checkout/PayphoneStage.vue'
 import { createOrder, getPayphoneConfig, type OrderPayload } from '@/services/orders'
 import { errorMessage } from '@/services/http'
 
@@ -14,16 +16,28 @@ declare const PPaymentButtonBox: new (config: Record<string, unknown>) => {
 const cartStore = useCartStore()
 const loading = ref(false)
 const showPaymentBox = ref(false)
+const boxReady = ref(false)
 const error = ref('')
 const form = ref<CustomerDetails>({ name: '', email: '', phone: '', address: '' })
 
 const isOpen = computed(() => cartStore.isPaymentOpen)
 useScrollLock(isOpen)
 
+const step = computed<1 | 2 | 3>(() => (showPaymentBox.value ? 2 : 1))
+
+// El resumen recapitula los datos solo cuando ya se pasó al pago.
+const customerRecap = computed(() => (showPaymentBox.value ? form.value : null))
+
 const close = () => {
   cartStore.setPaymentOpen(false)
   showPaymentBox.value = false
+  boxReady.value = false
   error.value = ''
+}
+
+const backToDetails = () => {
+  showPaymentBox.value = false
+  boxReady.value = false
 }
 
 const normalisedPhone = () =>
@@ -43,6 +57,33 @@ const buildOrder = (source: 'payphone' | 'whatsapp', clientTransactionId = ''): 
   source,
   clientTransactionId,
 })
+
+// El SDK no avisa cuando termina de pintar la caja: se observa el contenedor
+// y se retira el esqueleto en cuanto aparece contenido.
+const waitForBox = () => {
+  const container = document.querySelector('#pp-button')
+  if (!container) return
+  if (container.childElementCount) {
+    boxReady.value = true
+    return
+  }
+  const observer = new MutationObserver(() => {
+    if (container.childElementCount) {
+      boxReady.value = true
+      observer.disconnect()
+      // Payphone enfoca su primer campo al pintar y eso desplaza el cuerpo del
+      // modal; se devuelve arriba para que la cabecera del paso quede visible.
+      window.setTimeout(() => {
+        document.querySelector('.payment-modal .modal-body')?.scrollTo({ top: 0 })
+      }, 60)
+    }
+  })
+  observer.observe(container, { childList: true })
+  window.setTimeout(() => {
+    observer.disconnect()
+    boxReady.value = true
+  }, 4000)
+}
 
 const startPayphone = async () => {
   if (cartStore.isEmpty) {
@@ -67,6 +108,7 @@ const startPayphone = async () => {
     await createOrder(buildOrder('payphone', clientTransactionId))
 
     showPaymentBox.value = true
+    boxReady.value = false
     await nextTick()
     document.querySelector('#pp-button')?.replaceChildren()
 
@@ -90,8 +132,11 @@ const startPayphone = async () => {
       phoneNumber: normalisedPhone(),
       email: form.value.email.trim(),
     }).render('pp-button')
+
+    waitForBox()
   } catch (caught) {
     showPaymentBox.value = false
+    boxReady.value = false
     error.value = errorMessage(
       caught,
       'No fue posible preparar Payphone. Puedes finalizar tu pedido por WhatsApp.',
@@ -139,47 +184,34 @@ const completeByWhatsApp = async () => {
     <div v-if="cartStore.isPaymentOpen" class="modal-layer" @click.self="close" @keydown.esc="close">
       <section class="payment-modal" role="dialog" aria-modal="true" aria-label="Finalizar compra">
         <header class="modal-header">
-          <div>
+          <div class="header-copy">
             <p class="eyebrow">Finalizar pedido</p>
-            <h2>Detalles de pago</h2>
+            <h2>{{ showPaymentBox ? 'Paga de forma segura' : 'Tus datos de entrega' }}</h2>
           </div>
-          <button type="button" aria-label="Cerrar" @click="close">
+          <button class="close" type="button" aria-label="Cerrar" @click="close">
             <i class="fa-solid fa-xmark" aria-hidden="true"></i>
           </button>
         </header>
 
-        <ol class="progress">
-          <li :class="{ active: !showPaymentBox }">1. Datos</li>
-          <li aria-hidden="true" class="line"></li>
-          <li :class="{ active: showPaymentBox }">2. Pago</li>
-          <li aria-hidden="true" class="line"></li>
-          <li>3. Confirmación</li>
-        </ol>
+        <div class="steps-bar">
+          <CheckoutSteps :current="step" />
+        </div>
 
-        <div class="modal-content">
-          <OrderSummary />
+        <div class="modal-body">
+          <div class="summary-column">
+            <OrderSummary :customer="customerRecap" @edit="backToDetails" />
+          </div>
 
-          <PaymentCustomerForm
-            v-if="!showPaymentBox"
-            v-model="form"
-            :loading="loading"
-            :error="error"
-            @pay="startPayphone"
-            @whatsapp="completeByWhatsApp"
-          />
-
-          <div v-else class="payphone-stage">
-            <div class="stage-heading">
-              <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
-              <div>
-                <strong>Pago protegido por Payphone</strong>
-                <span>No compartimos los datos de tu tarjeta.</span>
-              </div>
-            </div>
-            <div id="pp-button"></div>
-            <button class="back-button" type="button" @click="showPaymentBox = false">
-              <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Volver a mis datos
-            </button>
+          <div class="step-column">
+            <PaymentCustomerForm
+              v-if="!showPaymentBox"
+              v-model="form"
+              :loading="loading"
+              :error="error"
+              @pay="startPayphone"
+              @whatsapp="completeByWhatsApp"
+            />
+            <PayphoneStage v-else :ready="boxReady" @back="backToDetails" />
           </div>
         </div>
       </section>
@@ -195,19 +227,20 @@ const completeByWhatsApp = async () => {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba($ink-900, 0.72);
-  backdrop-filter: blur(12px);
+  background: rgba($key-900, 0.6);
+  backdrop-filter: blur(8px);
 }
 
 .payment-modal {
-  @include scroll-area;
+  display: flex;
   width: 100%;
-  max-width: 760px;
-  max-height: 94vh;
-  border: 1px solid $border-on-dark;
+  max-height: 92vh;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid $border-subtle;
   border-radius: $radius-xl $radius-xl 0 0;
-  background: $ink-800;
-  color: $text-on-dark;
+  background: $surface-card;
+  color: $text-strong;
   box-shadow: $shadow-lg;
 }
 
@@ -215,30 +248,14 @@ const completeByWhatsApp = async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: $space-6 $space-6 $space-5;
-  border-bottom: 1px solid $border-on-dark;
+  gap: $space-4;
+  padding: $space-4 $space-5;
+  background: $key-900;
+  color: $text-on-dark;
 
   h2 {
-    margin-top: $space-1;
-    font-size: 1.5rem;
-  }
-
-  button {
-    display: flex;
-    width: 38px;
-    height: 38px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid $border-on-dark;
-    border-radius: $radius-pill;
-    background: transparent;
-    color: $text-on-dark;
-    cursor: pointer;
-    @include focus-ring($brand-300);
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
+    margin-top: 2px;
+    font-size: $text-heading;
   }
 }
 
@@ -246,70 +263,42 @@ const completeByWhatsApp = async () => {
   @include eyebrow($brand-300);
 }
 
-.progress {
-  @include row($space-2);
-  padding: $space-4 $space-6;
-  color: $ink-400;
-  font-size: $text-eyebrow;
-  font-weight: $weight-bold;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.close {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid $border-on-dark;
+  border-radius: $radius-pill;
+  background: transparent;
+  color: $text-on-dark;
+  cursor: pointer;
+  transition: background $duration-base $ease-out;
+  @include focus-ring($brand-300);
 
-  .active {
-    color: $brand-300;
-  }
-
-  .line {
-    flex: 1;
-    height: 1px;
-    background: $border-on-dark;
-  }
-}
-
-.modal-content {
-  @include stack($space-5);
-  padding: $space-5 $space-6 $space-8;
-}
-
-.payphone-stage {
-  @include stack($space-5);
-  padding: $space-5;
-  border: 1px solid rgba(32, 148, 210, 0.3);
-  border-radius: $radius-md;
-  background: rgba(32, 148, 210, 0.08);
-}
-
-.stage-heading {
-  @include row($space-3);
-  color: $brand-300;
-
-  i {
-    font-size: 1.25rem;
-  }
-
-  div {
-    @include stack(2px);
-  }
-
-  strong {
-    color: $text-on-dark;
-    font-size: $text-body-sm;
-  }
-
-  span {
-    color: $text-on-dark-muted;
-    font-size: $text-caption;
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
   }
 }
 
-.back-button {
-  @include button-ghost($text-on-dark-muted);
-  align-self: center;
+.steps-bar {
+  padding: $space-3 $space-5;
+  border-bottom: 1px solid $border-subtle;
+  background: $surface-page;
+}
 
-  &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    color: $text-on-dark;
-  }
+.modal-body {
+  @include scroll-area;
+  @include stack($space-4);
+  flex: 1;
+  padding: $space-4 $space-5 $space-6;
+}
+
+.step-column {
+  display: flex;
+  flex-direction: column;
 }
 
 .payment-modal-enter-active,
@@ -337,28 +326,39 @@ const completeByWhatsApp = async () => {
   }
 
   .payment-modal {
-    border-radius: $radius-xl;
-  }
-
-  .modal-content {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: $space-6;
-  }
-
-  .summary {
-    width: 38%;
-    flex: 0 0 38%;
-  }
-
-  .customer-form,
-  .payphone-stage {
-    flex: 1;
+    max-width: 960px;
+    border-radius: $radius-lg;
   }
 
   .payment-modal-enter-from,
   .payment-modal-leave-to .payment-modal {
-    transform: translateY(20px) scale(0.98);
+    transform: translateY(16px) scale(0.985);
+  }
+}
+
+@include from($bp-md) {
+  .modal-body {
+    flex-direction: row;
+    align-items: stretch;
+    gap: $space-6;
+    padding: $space-6;
+  }
+
+  .summary-column {
+    display: flex;
+    width: 320px;
+    flex: 0 0 320px;
+    flex-direction: column;
+  }
+
+  .step-column {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .steps-bar {
+    padding: $space-3 $space-6;
   }
 }
 </style>

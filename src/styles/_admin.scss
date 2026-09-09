@@ -7,6 +7,71 @@
 @use 'tokens' as *;
 @use 'mixins' as *;
 
+// Vista dentro de AdminLayout (el layout ya aporta sidebar, contenedor y
+// padding); la vista solo apila sus bloques.
+@mixin admin-page {
+  @include stack($space-6);
+}
+
+// Barra de herramientas de una lista: buscador + filtros + conteo.
+@mixin admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-2;
+}
+
+@mixin admin-search {
+  @include row($space-2);
+  min-width: 220px;
+  flex: 1;
+  padding: $space-2 $space-3;
+  border: 1px solid $border-strong;
+  border-radius: $radius-sm;
+  background: $surface-card;
+  color: $brand-600;
+  transition: border-color $duration-base $ease-out, box-shadow $duration-base $ease-out;
+
+  &:focus-within {
+    border-color: $cyan;
+    box-shadow: 0 0 0 3px rgba(0, 163, 224, 0.18);
+  }
+
+  input {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: $text-strong;
+    font: inherit;
+    font-size: $text-body-sm;
+    outline: none;
+
+    &::placeholder {
+      color: $text-muted;
+    }
+  }
+}
+
+@mixin admin-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: $space-2;
+  padding: $space-3 $space-4;
+  border-radius: $radius-sm;
+  font-size: $text-body-sm;
+  font-weight: $weight-semibold;
+
+  &.ok {
+    background: $success-100;
+    color: $success-500;
+  }
+
+  &.error {
+    background: $danger-100;
+    color: $danger-500;
+  }
+}
+
 @mixin admin-shell {
   min-height: 100vh;
   background: $surface-page;
@@ -167,6 +232,16 @@
   &.paid {
     background: $success-100;
     color: $success-500;
+  }
+
+  &.processing {
+    background: $brand-100;
+    color: $brand-700;
+  }
+
+  &.delivered {
+    background: $key-900;
+    color: $text-on-dark;
   }
 
   &.cancelled {

@@ -1,24 +1,30 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import AdminNav from '@/components/AdminNav.vue'
-import { listOrders, ORDER_STATUS_LABEL, type Order } from '@/services/orders'
+import { useRouter } from 'vue-router'
+import OrderStatusBadge from '@/components/admin/OrderStatusBadge.vue'
+import { listOrders, type Order } from '@/services/orders'
 import { errorMessage } from '@/services/http'
 import { useAdminEntrance } from '@/composables/useAdminEntrance'
+import { formatDate, formatMoney, sourceIcon } from '@/components/admin/orderHelpers'
 
 useAdminEntrance()
+const router = useRouter()
+
 const orders = ref<Order[]>([])
 const loading = ref(true)
 const error = ref('')
 
-const whatsappOrders = computed(() => orders.value.filter((o) => o.source === 'whatsapp').length)
-const paidOrders = computed(() => orders.value.filter((o) => o.status === 'paid').length)
-const revenue = computed(() =>
-  orders.value.filter((o) => o.status === 'paid').reduce((sum, o) => sum + o.totalAmount, 0),
+const whatsappPending = computed(() => orders.value.filter((o) => o.status === 'whatsapp').length)
+const paymentPending = computed(() => orders.value.filter((o) => o.status === 'pending').length)
+const inProgress = computed(() =>
+  orders.value.filter((o) => o.status === 'paid' || o.status === 'processing').length,
 )
+const paidOrders = computed(() => orders.value.filter((o) => o.status === 'paid' || o.status === 'processing' || o.status === 'delivered'))
+const revenue = computed(() => paidOrders.value.reduce((sum, o) => sum + o.totalAmount, 0))
 const recent = computed(() => orders.value.slice(0, 6))
+const attention = computed(() => whatsappPending.value + paymentPending.value)
 
-const formatDate = (value: string) => new Date(value).toLocaleString('es-EC')
-const statusLabel = (status: string) => ORDER_STATUS_LABEL[status] ?? status
+const goToOrders = (query: Record<string, string> = {}) => router.push({ name: 'AdminOrders', query })
 
 const load = async () => {
   loading.value = true
@@ -26,8 +32,6 @@ const load = async () => {
   try {
     orders.value = await listOrders()
   } catch (caught) {
-    // Antes esta promesa se rechazaba sin manejar y el panel quedaba vacio sin
-    // explicar por que.
     error.value = errorMessage(caught, 'No pudimos cargar los pedidos.')
   } finally {
     loading.value = false
@@ -39,42 +43,70 @@ onMounted(load)
 
 <template>
   <div class="dashboard">
-    <AdminNav />
+    <header class="page-header" data-admin-reveal>
+      <div>
+        <p class="eyebrow"><i class="fa-solid fa-wave-square" aria-hidden="true"></i> Centro de control</p>
+        <h1>Todo bajo<br /><em>control.</em></h1>
+        <p>Una lectura rápida de las solicitudes y pedidos que llegaron a Megaprinter.</p>
+      </div>
+      <button class="refresh" type="button" :disabled="loading" @click="load">
+        <i :class="loading ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-rotate'" aria-hidden="true"></i>
+        Actualizar
+      </button>
+    </header>
 
-    <main id="contenido">
-      <header class="page-header" data-admin-reveal>
-        <div>
-          <p class="eyebrow"><i class="fa-solid fa-wave-square" aria-hidden="true"></i> Centro de control</p>
-          <h1>Todo bajo<br /><em>control.</em></h1>
-          <p>Una lectura rápida de las conversaciones y órdenes que llegaron a Megaprinter.</p>
+    <p v-if="error" class="notice error" role="alert">
+      <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error }}
+    </p>
+
+    <section class="metrics" data-admin-reveal>
+      <article>
+        <div class="metric-icon blue"><i class="fa-solid fa-inbox" aria-hidden="true"></i></div>
+        <div><span>Total de pedidos</span><strong>{{ orders.length }}</strong><small>Últimos registros</small></div>
+      </article>
+      <article>
+        <div class="metric-icon green"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></div>
+        <div><span>Por contactar</span><strong>{{ whatsappPending }}</strong><small>Solicitudes por WhatsApp</small></div>
+      </article>
+      <article>
+        <div class="metric-icon brand"><i class="fa-solid fa-box-open" aria-hidden="true"></i></div>
+        <div><span>En curso</span><strong>{{ inProgress }}</strong><small>Pagados o en preparación</small></div>
+      </article>
+      <article>
+        <div class="metric-icon amber"><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i></div>
+        <div><span>Ingresos</span><strong>{{ formatMoney(revenue) }}</strong><small>Pedidos pagados</small></div>
+      </article>
+    </section>
+
+    <div class="panels">
+      <section class="attention" data-admin-reveal>
+        <div class="attention-head">
+          <span class="attention-icon"><i class="fa-solid fa-bell" aria-hidden="true"></i></span>
+          <div>
+            <p class="eyebrow light">Pedidos por atender</p>
+            <h2>{{ attention }} {{ attention === 1 ? 'pedido espera' : 'pedidos esperan' }} respuesta</h2>
+          </div>
         </div>
-        <button class="refresh" type="button" :disabled="loading" @click="load">
-          <i :class="loading ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-rotate'" aria-hidden="true"></i>
-          Actualizar
-        </button>
-      </header>
 
-      <p v-if="error" class="error" role="alert">
-        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error }}
-      </p>
+        <ul class="attention-list">
+          <li>
+            <span><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Solicitudes por WhatsApp</span>
+            <strong>{{ whatsappPending }}</strong>
+          </li>
+          <li>
+            <span><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Pagos sin confirmar</span>
+            <strong>{{ paymentPending }}</strong>
+          </li>
+        </ul>
 
-      <section class="metrics" data-admin-reveal>
-        <article>
-          <div class="metric-icon blue"><i class="fa-solid fa-inbox" aria-hidden="true"></i></div>
-          <div><span>Total de solicitudes</span><strong>{{ orders.length }}</strong><small>Últimos registros</small></div>
-        </article>
-        <article>
-          <div class="metric-icon green"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></div>
-          <div><span>Contacto por WhatsApp</span><strong>{{ whatsappOrders }}</strong><small>Esperando al equipo</small></div>
-        </article>
-        <article>
-          <div class="metric-icon brand"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></div>
-          <div><span>Pagos confirmados</span><strong>{{ paidOrders }}</strong><small>Payphone aprobado</small></div>
-        </article>
-        <article>
-          <div class="metric-icon amber"><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i></div>
-          <div><span>Ingresos confirmados</span><strong>${{ revenue.toFixed(2) }}</strong><small>Solo pagos aprobados</small></div>
-        </article>
+        <div class="attention-actions">
+          <button type="button" @click="goToOrders({ status: 'whatsapp' })">
+            <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Atender WhatsApp
+          </button>
+          <button type="button" class="ghost" @click="goToOrders({ status: 'pending' })">
+            <i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Revisar pagos
+          </button>
+        </div>
       </section>
 
       <section class="activity" data-admin-reveal>
@@ -83,7 +115,7 @@ onMounted(load)
             <p class="eyebrow"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Actividad</p>
             <h2>Lo más reciente</h2>
           </div>
-          <router-link to="/admin/orders">
+          <router-link :to="{ name: 'AdminOrders' }">
             Ver todos <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
           </router-link>
         </header>
@@ -93,7 +125,7 @@ onMounted(load)
         <div v-else-if="recent.length" class="timeline">
           <article v-for="order in recent" :key="order._id">
             <div class="source-icon" :class="order.source">
-              <i :class="order.source === 'whatsapp' ? 'fa-brands fa-whatsapp' : 'fa-solid fa-credit-card'" aria-hidden="true"></i>
+              <i :class="sourceIcon(order.source)" aria-hidden="true"></i>
             </div>
             <div class="entry-copy">
               <strong>{{ order.customerName }}</strong>
@@ -101,8 +133,8 @@ onMounted(load)
               <small>{{ formatDate(order.createdAt) }}</small>
             </div>
             <div class="entry-amount">
-              <strong>${{ order.totalAmount.toFixed(2) }}</strong>
-              <span class="status" :class="order.status">{{ statusLabel(order.status) }}</span>
+              <strong>{{ formatMoney(order.totalAmount) }}</strong>
+              <OrderStatusBadge :status="order.status" />
             </div>
           </article>
         </div>
@@ -113,38 +145,34 @@ onMounted(load)
           <p>Las nuevas solicitudes aparecerán aquí automáticamente.</p>
         </div>
       </section>
-    </main>
+    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
 .dashboard {
-  @include admin-shell;
+  @include admin-page;
 }
 
 .page-header {
   @include admin-header;
+  margin-bottom: 0;
 }
 
 .eyebrow {
   @include admin-eyebrow;
+
+  &.light {
+    color: $brand-300;
+  }
 }
 
 .refresh {
   @include admin-refresh-button;
 }
 
-.error {
-  display: flex;
-  align-items: center;
-  gap: $space-2;
-  margin-bottom: $space-5;
-  padding: $space-3 $space-4;
-  border: 1px solid $danger-500;
-  border-radius: $radius-sm;
-  background: $danger-100;
-  color: $danger-500;
-  font-size: $text-body-sm;
+.notice {
+  @include admin-notice;
 }
 
 .metrics {
@@ -205,7 +233,7 @@ onMounted(load)
   }
 
   &.brand {
-    background: rgba(32, 148, 210, 0.14);
+    background: rgba(0, 163, 224, 0.14);
     color: $brand-700;
   }
 
@@ -215,9 +243,85 @@ onMounted(load)
   }
 }
 
+.panels {
+  @include stack($space-5);
+}
+
+.attention {
+  @include stack($space-5);
+  padding: $space-6;
+  border-radius: $radius-lg;
+  background: $key-900;
+  color: $text-on-dark;
+
+  h2 {
+    margin-top: $space-1;
+    font-size: $text-heading;
+  }
+}
+
+.attention-head {
+  @include row($space-3, flex-start);
+}
+
+.attention-icon {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  background: rgba(0, 163, 224, 0.16);
+  color: $brand-300;
+}
+
+.attention-list {
+  @include stack($space-2);
+
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $space-3;
+    padding: $space-3 $space-4;
+    border: 1px solid $border-on-dark;
+    border-radius: $radius-sm;
+    font-size: $text-body-sm;
+
+    span {
+      @include row($space-2);
+      color: $text-on-dark-muted;
+    }
+
+    i {
+      color: $brand-300;
+    }
+
+    strong {
+      font-size: 1.1rem;
+      font-weight: $weight-black;
+    }
+  }
+}
+
+.attention-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+
+  button {
+    @include button-primary;
+    flex: 1;
+  }
+
+  .ghost {
+    @include button-on-dark;
+  }
+}
+
 .activity {
   @include admin-card;
-  margin-top: $space-6;
 
   > header {
     display: flex;
@@ -295,10 +399,6 @@ onMounted(load)
   strong {
     font-size: $text-body-sm;
   }
-
-  .status {
-    @include admin-status-badge;
-  }
 }
 
 .state {
@@ -309,5 +409,22 @@ onMounted(load)
 
 .empty {
   @include empty-state;
+}
+
+@include from($bp-lg) {
+  .panels {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .attention {
+    width: 340px;
+    flex: none;
+  }
+
+  .activity {
+    flex: 1;
+    min-width: 0;
+  }
 }
 </style>
