@@ -13,7 +13,9 @@ defineProps<{ customer?: CustomerDetails | null }>()
 const emit = defineEmits<{ edit: [] }>()
 
 const cartStore = useCartStore()
-const expanded = ref(false)
+// Con varios equipos se abre de entrada: plegado solo mostraba el total y el
+// cliente no veía qué productos lo formaban.
+const expanded = ref(cartStore.items.length > 1)
 </script>
 
 <template>

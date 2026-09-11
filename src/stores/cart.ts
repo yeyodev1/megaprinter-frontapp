@@ -10,15 +10,29 @@ export interface CartItem {
 
 const STORAGE_KEY = 'megaprinter-cart'
 
+// Un carrito olvidado en el navegador se sumaba a la siguiente compra: el
+// cliente pedía una laptop de $620 y el pago salía por $1180 porque seguía ahí
+// otra de una visita anterior. Pasado este tiempo sin tocarlo, se descarta.
+const CART_TTL_MS = 12 * 60 * 60 * 1000
+
+interface StoredCart {
+  items: unknown
+  updatedAt: number
+}
+
 const readStoredItems = (): CartItem[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
+    const parsed = JSON.parse(raw) as Partial<StoredCart> | null
+    // El formato anterior (un arreglo sin fecha) no sabe cuándo se guardó, así
+    // que se trata como vencido.
+    if (!parsed || typeof parsed.updatedAt !== 'number') return []
+    if (Date.now() - parsed.updatedAt > CART_TTL_MS) return []
+    if (!Array.isArray(parsed.items)) return []
     // El carrito viene de almacenamiento del cliente: validamos forma y numeros
     // antes de confiar en el, o un valor manipulado rompe los totales.
-    return parsed.filter(
+    return parsed.items.filter(
       (item): item is CartItem =>
         !!item &&
         typeof item === 'object' &&
@@ -36,6 +50,9 @@ const readStoredItems = (): CartItem[] => {
 export const useCartStore = defineStore('cart', {
   state: () => ({
     items: readStoredItems(),
+    // Último producto agregado con "Comprar": el carrito lo destaca y ofrece
+    // quedarse solo con él cuando hay otros equipos de antes.
+    lastAddedId: '',
     isCheckoutOpen: false,
     isPaymentOpen: false,
   }),
@@ -52,7 +69,8 @@ export const useCartStore = defineStore('cart', {
   actions: {
     persist() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.items))
+        const stored: StoredCart = { items: this.items, updatedAt: Date.now() }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
       } catch {
         // Modo privado o cuota llena: el carrito sigue funcionando en memoria.
       }
@@ -62,12 +80,19 @@ export const useCartStore = defineStore('cart', {
       const existing = this.items.find((entry) => entry.id === item.id)
       if (existing) existing.quantity += 1
       else this.items.push({ ...item, quantity: 1 })
+      this.lastAddedId = item.id
       this.persist()
       this.isCheckoutOpen = true
     },
 
     removeItem(id: string) {
       this.items = this.items.filter((item) => item.id !== id)
+      if (this.lastAddedId === id) this.lastAddedId = ''
+      this.persist()
+    },
+
+    keepOnly(id: string) {
+      this.items = this.items.filter((item) => item.id === id)
       this.persist()
     },
 
@@ -84,6 +109,7 @@ export const useCartStore = defineStore('cart', {
 
     clearCart() {
       this.items = []
+      this.lastAddedId = ''
       this.persist()
     },
 

@@ -12,6 +12,20 @@ useScrollLock(isOpen)
 
 const close = () => cartStore.setCheckoutOpen(false)
 
+// Si al pulsar "Comprar" ya había otros equipos en el carrito, se avisa: sin
+// esto el cliente veía un total que no correspondía al producto que eligió.
+const justAdded = computed(() => cartStore.items.find((item) => item.id === cartStore.lastAddedId))
+const otherItemsCount = computed(() =>
+  cartStore.items
+    .filter((item) => item.id !== cartStore.lastAddedId)
+    .reduce((sum, item) => sum + item.quantity, 0),
+)
+const showMixedNotice = computed(() => !!justAdded.value && otherItemsCount.value > 0)
+
+const keepOnlyJustAdded = () => {
+  if (justAdded.value) cartStore.keepOnly(justAdded.value.id)
+}
+
 const openPayment = () => {
   cartStore.setCheckoutOpen(false)
   cartStore.setPaymentOpen(true)
@@ -38,8 +52,24 @@ const goToCatalog = () => {
         </header>
 
         <div v-if="!cartStore.isEmpty" class="drawer-content">
+          <section v-if="showMixedNotice" class="mixed-notice" role="status">
+            <p>
+              Agregaste <strong>{{ justAdded?.name }}</strong>. Tu carrito también tiene
+              {{ otherItemsCount }} producto{{ otherItemsCount === 1 ? '' : 's' }} que elegiste
+              antes y se suma{{ otherItemsCount === 1 ? '' : 'n' }} al total.
+            </p>
+            <button type="button" @click="keepOnlyJustAdded">
+              Comprar solo este producto
+            </button>
+          </section>
+
           <div class="cart-list">
-            <article v-for="item in cartStore.items" :key="item.id" class="cart-item">
+            <article
+              v-for="item in cartStore.items"
+              :key="item.id"
+              class="cart-item"
+              :class="{ 'is-new': showMixedNotice && item.id === cartStore.lastAddedId }"
+            >
               <div class="item-mark" aria-hidden="true">
                 <img v-if="item.image" :src="item.image" alt="" loading="lazy" />
                 <i v-else class="fa-solid fa-cube"></i>
@@ -187,6 +217,45 @@ const goToCatalog = () => {
   border: 1px solid $border-on-dark;
   border-radius: $radius-md;
   background: rgba(255, 255, 255, 0.03);
+
+  &.is-new {
+    border-color: $brand-300;
+    background: rgba(0, 163, 224, 0.1);
+  }
+}
+
+.mixed-notice {
+  @include stack($space-3);
+  padding: $space-4;
+  border: 1px solid rgba(255, 206, 0, 0.45);
+  border-radius: $radius-md;
+  background: rgba(255, 206, 0, 0.1);
+  color: $text-on-dark;
+  font-size: $text-body-sm;
+  line-height: $leading-tight;
+
+  strong {
+    color: $yellow;
+  }
+
+  button {
+    align-self: flex-start;
+    padding: $space-2 $space-4;
+    border: 1px solid $yellow;
+    border-radius: $radius-pill;
+    background: transparent;
+    color: $yellow;
+    cursor: pointer;
+    font-size: $text-caption;
+    font-weight: $weight-bold;
+    transition: background $duration-base $ease-out, color $duration-base $ease-out;
+    @include focus-ring($yellow);
+
+    &:hover {
+      background: $yellow;
+      color: $key-900;
+    }
+  }
 }
 
 .item-mark {
