@@ -1,6 +1,6 @@
 import { http } from '@/services/http'
 
-export type BotStage = 'idle' | 'choosing' | 'name' | 'email' | 'address' | 'payment' | 'confirm' | 'ordered'
+export type BotStage = 'idle' | 'choosing' | 'name' | 'email' | 'address' | 'payment' | 'bank' | 'confirm' | 'ordered'
 
 export interface BotConversationSummary {
   phone: string

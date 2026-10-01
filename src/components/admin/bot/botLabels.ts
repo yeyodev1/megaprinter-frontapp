@@ -39,6 +39,7 @@ export const STAGE_META: Record<BotStage, { label: string; icon: string }> = {
   email: { label: 'Pidiendo correo', icon: 'fa-solid fa-envelope' },
   address: { label: 'Pidiendo dirección', icon: 'fa-solid fa-location-dot' },
   payment: { label: 'Eligiendo pago', icon: 'fa-solid fa-wallet' },
+  bank: { label: 'Eligiendo banco', icon: 'fa-solid fa-building-columns' },
   confirm: { label: 'Confirmando pedido', icon: 'fa-solid fa-clipboard-check' },
   ordered: { label: 'Pedido creado', icon: 'fa-solid fa-circle-check' },
 }
@@ -46,7 +47,7 @@ export const STAGE_META: Record<BotStage, { label: string; icon: string }> = {
 export const stageMeta = (stage: string) => STAGE_META[stage as BotStage] ?? { label: stage, icon: 'fa-solid fa-circle' }
 
 /** Pasos del embudo en orden, para dibujar el avance del cliente. */
-export const FUNNEL: BotStage[] = ['idle', 'choosing', 'name', 'email', 'address', 'payment', 'confirm', 'ordered']
+export const FUNNEL: BotStage[] = ['idle', 'choosing', 'name', 'email', 'address', 'payment', 'bank', 'confirm', 'ordered']
 
 export const paymentLabel = (method: string | null) =>
   method === 'card' ? 'Tarjeta' : method === 'transfer' ? 'Transferencia' : 'Sin definir'

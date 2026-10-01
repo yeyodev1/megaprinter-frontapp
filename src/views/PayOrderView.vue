@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import BrandMark from '@/components/BrandMark.vue'
 import PayphoneStage from '@/components/checkout/PayphoneStage.vue'
 import {
+  choosePaymentBank,
   createPaymentIntent,
   getPaymentOrder,
   getPayphoneConfig,
@@ -125,8 +126,26 @@ const copied = ref('')
 
 const transferStatus = computed(() => order.value?.transfer?.status ?? 'awaiting_receipt')
 const canUpload = computed(
-  () => order.value?.source === 'transfer' && order.value.status === 'pending' && transferStatus.value !== 'approved',
+  () =>
+    order.value?.source === 'transfer' &&
+    order.value.status === 'pending' &&
+    transferStatus.value !== 'approved' &&
+    Boolean(order.value.bank),
 )
+
+// Primero elige el banco; recién ahí se muestra esa cuenta.
+const choosingBank = ref('')
+const chooseBank = async (accountId: string) => {
+  choosingBank.value = accountId
+  uploadError.value = ''
+  try {
+    order.value = await choosePaymentBank(token, accountId)
+  } catch (caught) {
+    uploadError.value = errorMessage(caught, 'No pudimos guardar el banco. Intenta de nuevo.')
+  } finally {
+    choosingBank.value = ''
+  }
+}
 
 const copy = async (label: string, value: string) => {
   try {
@@ -222,8 +241,35 @@ onMounted(load)
 
         <!-- Transferencia -->
         <template v-if="order.source === 'transfer' && !isPaid && !isCancelled">
+          <section v-if="!order.bank && order.banks.length" class="bank-choice" aria-label="Elige tu banco">
+            <p class="section-title"><i class="fa-solid fa-building-columns" aria-hidden="true"></i> A qué banco prefieres transferir?</p>
+            <div class="bank-options">
+              <button
+                v-for="account in order.banks"
+                :key="account.id"
+                type="button"
+                class="bank-option"
+                :disabled="Boolean(choosingBank)"
+                @click="chooseBank(account.id)"
+              >
+                <span class="bank-logo">
+                  <img v-if="account.logoUrl" :src="account.logoUrl" alt="" loading="lazy" />
+                  <i v-else class="fa-solid fa-building-columns" aria-hidden="true"></i>
+                </span>
+                <span>{{ account.bank }}</span>
+                <i :class="choosingBank === account.id ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-chevron-right'" aria-hidden="true"></i>
+              </button>
+            </div>
+          </section>
+
           <section v-if="order.bank" class="bank" aria-label="Datos de la cuenta">
-            <p class="section-title"><i class="fa-solid fa-building-columns" aria-hidden="true"></i> Transfiere a esta cuenta</p>
+            <p class="section-title">
+              <span class="bank-logo small">
+                <img v-if="order.bank.logoUrl" :src="order.bank.logoUrl" alt="" />
+                <i v-else class="fa-solid fa-building-columns" aria-hidden="true"></i>
+              </span>
+              Transfiere a esta cuenta
+            </p>
             <dl>
               <div v-if="order.bank.bank"><dt>Banco</dt><dd>{{ order.bank.bank }}</dd></div>
               <div v-if="order.bank.accountType"><dt>Tipo</dt><dd>Cuenta {{ order.bank.accountType }}</dd></div>
@@ -415,6 +461,72 @@ h1 {
     min-width: 0;
     font-size: $text-body-sm;
     text-align: right;
+  }
+}
+
+.bank-choice {
+  @include stack($space-3);
+}
+
+.bank-options {
+  @include stack($space-2);
+}
+
+.bank-option {
+  @include row($space-3);
+  width: 100%;
+  padding: $space-3 $space-4;
+  border: 1px solid $border-strong;
+  border-radius: $radius-md;
+  background: $surface-card;
+  color: $text-strong;
+  font-size: $text-body-sm;
+  font-weight: $weight-semibold;
+  text-align: left;
+  cursor: pointer;
+  @include focus-ring;
+
+  > span:nth-child(2) {
+    flex: 1;
+  }
+
+  > i {
+    color: $text-muted;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: $cyan;
+    background: $brand-100;
+  }
+}
+
+.bank-logo {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-sm;
+  background: $paper-white;
+  color: $text-muted;
+
+  img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+  }
+
+  &.small {
+    width: 28px;
+    height: 28px;
+
+    img {
+      width: 20px;
+      height: 20px;
+    }
   }
 }
 

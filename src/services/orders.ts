@@ -32,6 +32,7 @@ export interface TransferReceipt {
 
 export interface OrderTransfer {
   status?: TransferStatus
+  account?: Partial<BankDetails>
   receipts?: TransferReceipt[]
   reviewedBy?: string
   reviewedAt?: string
@@ -136,15 +137,21 @@ export const reviewTransfer = async (id: string, decision: 'approve' | 'reject',
   (await http.patch<Order>(`/orders/${id}/transfer`, { decision, note })).data
 
 export interface BankDetails {
+  id: string
+  bankCode: string
   bank: string
   accountType: string
   accountNumber: string
   accountHolder: string
   holderId: string
+  logoUrl: string
 }
 
 export const getTransferConfig = async () =>
-  (await http.get<{ enabled: boolean; bank: BankDetails | null }>('/orders/transfer/config')).data
+  (await http.get<{ enabled: boolean; accounts: BankDetails[] }>('/orders/transfer/config')).data
+
+export const choosePaymentBank = async (token: string, accountId: string) =>
+  (await http.post<PaymentOrder>(`/orders/pay/${encodeURIComponent(token)}/bank`, { accountId })).data
 
 /** Pedido visto desde su enlace privado de pago (/pagar/:token). */
 export interface PaymentOrder {
@@ -156,7 +163,10 @@ export interface PaymentOrder {
   source: OrderSource
   createdAt: string
   transfer: { status: TransferStatus; receiptsCount: number; lastReceiptAt: string | null; note: string } | null
+  /** Cuenta elegida; null mientras no elija banco. */
   bank: BankDetails | null
+  /** Bancos para elegir (solo si aún no eligió). */
+  banks: BankDetails[]
 }
 
 export const getPaymentOrder = async (token: string) =>

@@ -166,6 +166,17 @@ const request = (status: OrderStatus | null) => {
           </span>
         </div>
 
+        <p v-if="transfer.account?.accountNumber" class="transfer-account">
+          <img v-if="transfer.account.logoUrl" :src="transfer.account.logoUrl" alt="" />
+          <span>
+            Eligió <strong>{{ transfer.account.bank }}</strong> · Cta. {{ transfer.account.accountType }}
+            <span class="mono">{{ transfer.account.accountNumber }}</span>
+          </span>
+        </p>
+        <p v-else class="transfer-empty">
+          <i class="fa-solid fa-building-columns" aria-hidden="true"></i> Todavía no elige a qué banco transferir.
+        </p>
+
         <p v-if="!receipts.length" class="transfer-empty">
           <i class="fa-solid fa-hourglass-half" aria-hidden="true"></i>
           El cliente aún no envía el comprobante. Llega solo por WhatsApp o desde su enlace de pago.
@@ -333,6 +344,24 @@ const request = (status: OrderStatus | null) => {
   &.rejected {
     background: $danger-100;
     color: $danger-500;
+  }
+}
+
+.transfer-account {
+  @include row($space-2);
+  padding: $space-2 $space-3;
+  border-radius: $radius-sm;
+  background: $surface-sunken;
+  font-size: $text-body-sm;
+
+  img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+  }
+
+  .mono {
+    @include mono-data($text-strong, $text-caption);
   }
 }
 
