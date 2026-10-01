@@ -122,9 +122,18 @@ const request = (status: OrderStatus | null) => {
           </div>
         </dl>
 
-        <a :href="chatLink(order)" target="_blank" rel="noopener" class="chat">
-          <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Abrir chat con el cliente
-        </a>
+        <div class="contact-actions">
+          <a :href="chatLink(order)" target="_blank" rel="noopener" class="chat">
+            <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Abrir chat con el cliente
+          </a>
+          <router-link
+            v-if="fromBot(order) && order.whatsappPhone"
+            :to="{ name: 'AdminBot', query: { phone: order.whatsappPhone } }"
+            class="bot-link"
+          >
+            <i class="fa-solid fa-robot" aria-hidden="true"></i> Ver conversación del bot
+          </router-link>
+        </div>
       </section>
 
       <section class="block">
@@ -475,9 +484,18 @@ const request = (status: OrderStatus | null) => {
   }
 }
 
+.contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+}
+
 .chat {
   @include button-whatsapp;
-  align-self: flex-start;
+}
+
+.bot-link {
+  @include button-secondary;
 }
 
 .items {

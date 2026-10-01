@@ -63,6 +63,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: 'Panel interno' },
       },
       {
+        path: 'bot',
+        name: 'AdminBot',
+        component: () => import('../views/BotAdminView.vue'),
+        meta: { title: 'Bot de WhatsApp' },
+      },
+      {
         path: 'catalog',
         name: 'CatalogAdmin',
         component: () => import('../views/CatalogAdminView.vue'),

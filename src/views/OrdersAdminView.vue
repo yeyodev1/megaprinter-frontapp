@@ -174,6 +174,7 @@ onMounted(() => {
   if (typeof status === 'string' && STATUS_VALUES.includes(status)) statusFilter.value = status
   if (typeof source === 'string' && SOURCE_VALUES.includes(source)) sourceFilter.value = source
   if (route.query.transfer === 'in_review') reviewOnly.value = true
+  if (typeof route.query.search === 'string') search.value = route.query.search
   load()
 })
 </script>
