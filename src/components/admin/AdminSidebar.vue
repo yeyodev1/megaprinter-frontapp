@@ -24,6 +24,7 @@ const sections = [
   {
     label: 'Sistema',
     links: [
+      { to: '/admin/payments', name: 'AdminPayments', label: 'Pagos', hint: 'Transferencia bancaria', icon: 'fa-solid fa-building-columns' },
       { to: '/admin/users', name: 'AdminUsers', label: 'Usuarios', hint: 'Accesos al panel', icon: 'fa-solid fa-users' },
     ],
   },

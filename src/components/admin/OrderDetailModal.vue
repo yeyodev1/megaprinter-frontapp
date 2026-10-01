@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import OrderStatusBadge from '@/components/admin/OrderStatusBadge.vue'
 import { orderStatusMeta, type Order, type OrderStatus } from '@/services/orders'
@@ -7,15 +7,43 @@ import {
   chatLink,
   formatDate,
   formatMoney,
+  fromBot,
   initialStatus,
+  orderCode,
   orderPath,
   phoneLink,
   sourceIcon,
   sourceLabel,
+  TRANSFER_STATUS,
 } from '@/components/admin/orderHelpers'
 
 const props = defineProps<{ order: Order | null; busy: boolean }>()
-const emit = defineEmits<{ close: []; changeStatus: [order: Order, status: OrderStatus] }>()
+const emit = defineEmits<{
+  close: []
+  changeStatus: [order: Order, status: OrderStatus]
+  reviewTransfer: [order: Order, decision: 'approve' | 'reject', note: string]
+}>()
+
+const transfer = computed(() => (props.order?.source === 'transfer' ? props.order.transfer ?? {} : null))
+const transferMeta = computed(() => (transfer.value?.status ? TRANSFER_STATUS[transfer.value.status] : null))
+const receipts = computed(() => [...(transfer.value?.receipts ?? [])].reverse())
+const canReview = computed(
+  () => !!props.order && props.order.status === 'pending' && !!transfer.value?.receipts?.length && transfer.value.status !== 'approved',
+)
+const rejectNote = ref('')
+watch(
+  () => props.order?._id,
+  () => (rejectNote.value = ''),
+)
+
+const isPdf = (url: string) => /\.pdf($|\?)|\/raw\/upload\//i.test(url)
+const check = (value: boolean | null | undefined) => (value === true ? 'ok' : value === false ? 'bad' : 'unknown')
+const checkLabel = (value: boolean | null | undefined, yes: string, no: string) =>
+  value === true ? yes : value === false ? no : 'Sin lectura'
+
+const review = (decision: 'approve' | 'reject') => {
+  if (props.order) emit('reviewTransfer', props.order, decision, rejectNote.value.trim())
+}
 
 const path = computed(() => (props.order ? orderPath(props.order) : []))
 const currentIndex = computed(() =>
@@ -37,7 +65,8 @@ const ADVANCE_LABEL: Partial<Record<OrderStatus, string>> = {
 }
 
 const nextStatus = computed<OrderStatus | null>(() => {
-  if (!props.order || isCancelled.value) return null
+  // Con comprobante por revisar, el pago se marca con «Aprobar pago» (queda registro de quién lo aprobó).
+  if (!props.order || isCancelled.value || canReview.value) return null
   return path.value[currentIndex.value + 1] ?? null
 })
 
@@ -84,8 +113,12 @@ const request = (status: OrderStatus | null) => {
             <dd>{{ formatDate(order.updatedAt) }}</dd>
           </div>
           <div>
-            <dt>Referencia</dt>
-            <dd class="mono">{{ order._id }}</dd>
+            <dt>Pedido</dt>
+            <dd class="mono">{{ orderCode(order) }}</dd>
+          </div>
+          <div>
+            <dt>Canal</dt>
+            <dd>{{ fromBot(order) ? 'Bot de WhatsApp' : 'Tienda web' }}</dd>
           </div>
         </dl>
 
@@ -112,6 +145,74 @@ const request = (status: OrderStatus | null) => {
           <div class="row total">
             <span class="name">Total</span>
             <span class="sub">{{ formatMoney(order.totalAmount) }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="transfer" class="block transfer">
+        <div class="transfer-head">
+          <p class="eyebrow">Transferencia</p>
+          <span v-if="transferMeta" class="transfer-status" :class="transferMeta.tone">
+            <i :class="transferMeta.icon" aria-hidden="true"></i>{{ transferMeta.label }}
+          </span>
+        </div>
+
+        <p v-if="!receipts.length" class="transfer-empty">
+          <i class="fa-solid fa-hourglass-half" aria-hidden="true"></i>
+          El cliente aún no envía el comprobante. Llega solo por WhatsApp o desde su enlace de pago.
+        </p>
+
+        <article v-for="(receipt, index) in receipts" :key="receipt.url" class="receipt">
+          <a :href="receipt.url" target="_blank" rel="noopener" class="receipt-media">
+            <span v-if="isPdf(receipt.url)" class="pdf"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Ver PDF</span>
+            <img v-else :src="receipt.url" :alt="`Comprobante ${index + 1} del pedido ${orderCode(order)}`" loading="lazy" />
+          </a>
+          <div class="receipt-copy">
+            <p class="receipt-meta">
+              {{ index === 0 ? 'Último comprobante' : 'Anterior' }} · {{ receipt.via === 'web' ? 'Web' : 'WhatsApp' }} ·
+              {{ formatDate(receipt.receivedAt) }}
+            </p>
+            <template v-if="receipt.analysis?.summary">
+              <p class="receipt-summary">
+                <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>{{ receipt.analysis.summary }}
+              </p>
+              <ul class="checks">
+                <li :class="check(receipt.analysis.amountMatches)">
+                  {{ checkLabel(receipt.analysis.amountMatches, 'Monto coincide', 'Monto distinto') }}
+                  <span v-if="receipt.analysis.detectedAmount != null"> ({{ formatMoney(receipt.analysis.detectedAmount) }})</span>
+                </li>
+                <li :class="check(receipt.analysis.accountMatches)">
+                  {{ checkLabel(receipt.analysis.accountMatches, 'Cuenta destino coincide', 'Otra cuenta destino') }}
+                </li>
+                <li v-if="receipt.analysis.detectedReference" class="unknown">Ref. {{ receipt.analysis.detectedReference }}</li>
+              </ul>
+            </template>
+            <p v-else class="receipt-summary muted">Sin lectura automática: revisa la imagen.</p>
+          </div>
+        </article>
+
+        <p v-if="receipts.length" class="hint">
+          La lectura automática solo orienta. Confirma en la banca en línea que el dinero llegó antes de aprobar.
+        </p>
+
+        <p v-if="transfer.reviewedAt" class="reviewed">
+          {{ transfer.status === 'approved' ? 'Aprobada' : 'Rechazada' }} por {{ transfer.reviewedBy || 'el equipo' }} ·
+          {{ formatDate(transfer.reviewedAt) }}<span v-if="transfer.note"> · «{{ transfer.note }}»</span>
+        </p>
+
+        <div v-if="canReview" class="review-box">
+          <label class="note">
+            <span>Motivo si rechazas (lo verá el cliente)</span>
+            <input v-model="rejectNote" type="text" maxlength="300" placeholder="Ej.: el monto no coincide, falta $20" />
+          </label>
+          <div class="review-actions">
+            <button type="button" class="approve" :disabled="busy" @click="review('approve')">
+              <i :class="busy ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-circle-check'" aria-hidden="true"></i>
+              Aprobar pago
+            </button>
+            <button type="button" class="reject" :disabled="busy || !rejectNote.trim()" @click="review('reject')">
+              <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> Rechazar
+            </button>
           </div>
         </div>
       </section>
@@ -193,6 +294,152 @@ const request = (status: OrderStatus | null) => {
   &.payphone {
     background: $brand-100;
     color: $brand-600;
+  }
+
+  &.transfer {
+    background: $warning-100;
+    color: $warning-500;
+  }
+}
+
+.transfer-head {
+  @include row($space-3);
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.transfer-status {
+  @include badge;
+
+  &.review {
+    background: $warning-100;
+    color: $warning-500;
+  }
+
+  &.approved {
+    background: $success-100;
+    color: $success-500;
+  }
+
+  &.rejected {
+    background: $danger-100;
+    color: $danger-500;
+  }
+}
+
+.transfer-empty,
+.hint,
+.reviewed {
+  @include row($space-2, flex-start);
+  color: $text-muted;
+  font-size: $text-caption;
+}
+
+.receipt {
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+  padding: $space-3;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-sm;
+}
+
+.receipt-media {
+  display: flex;
+  overflow: hidden;
+  border-radius: $radius-xs;
+  background: $surface-sunken;
+  @include focus-ring;
+
+  img {
+    width: 100%;
+    max-height: 320px;
+    object-fit: contain;
+  }
+
+  .pdf {
+    @include row($space-2);
+    padding: $space-6;
+    color: $text-strong;
+    font-weight: $weight-semibold;
+  }
+}
+
+.receipt-copy {
+  @include stack($space-2);
+  min-width: 0;
+}
+
+.receipt-meta {
+  @include mono-data($text-muted, $text-eyebrow);
+}
+
+.receipt-summary {
+  @include row($space-2, flex-start);
+  font-size: $text-body-sm;
+
+  i {
+    margin-top: 3px;
+    color: $brand-500;
+  }
+
+  &.muted {
+    color: $text-muted;
+  }
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+
+  li {
+    @include badge;
+  }
+
+  .ok {
+    background: $success-100;
+    color: $success-500;
+  }
+
+  .bad {
+    background: $danger-100;
+    color: $danger-500;
+  }
+}
+
+.review-box {
+  @include stack($space-3);
+}
+
+.note {
+  @include stack($space-1);
+
+  > span {
+    @include field-label;
+  }
+
+  input {
+    @include input-base;
+  }
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+}
+
+.approve {
+  @include button-primary;
+}
+
+.reject {
+  @include button-secondary;
+  color: $danger-500;
+
+  &:hover:not(:disabled) {
+    border-color: $danger-500;
   }
 }
 
@@ -374,6 +621,16 @@ const request = (status: OrderStatus | null) => {
 }
 
 @include from($bp-md) {
+  .receipt {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .receipt-media {
+    width: 200px;
+    flex: none;
+  }
+
   .row {
     flex-wrap: nowrap;
 

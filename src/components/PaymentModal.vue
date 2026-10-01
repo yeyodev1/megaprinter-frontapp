@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useScrollLock } from '@/composables/useScrollLock'
 import OrderSummary from '@/components/OrderSummary.vue'
 import PaymentCustomerForm, { type CustomerDetails } from '@/components/PaymentCustomerForm.vue'
 import CheckoutSteps from '@/components/checkout/CheckoutSteps.vue'
 import PayphoneStage from '@/components/checkout/PayphoneStage.vue'
-import { createOrder, getPayphoneConfig, type OrderPayload } from '@/services/orders'
+import { createOrder, getPayphoneConfig, getTransferConfig, type OrderPayload, type OrderSource } from '@/services/orders'
 import { errorMessage } from '@/services/http'
 
 declare const PPaymentButtonBox: new (config: Record<string, unknown>) => {
@@ -14,6 +15,8 @@ declare const PPaymentButtonBox: new (config: Record<string, unknown>) => {
 }
 
 const cartStore = useCartStore()
+const router = useRouter()
+const transferEnabled = ref(false)
 const loading = ref(false)
 const showPaymentBox = ref(false)
 const boxReady = ref(false)
@@ -22,6 +25,16 @@ const form = ref<CustomerDetails>({ name: '', email: '', phone: '', address: '' 
 
 const isOpen = computed(() => cartStore.isPaymentOpen)
 useScrollLock(isOpen)
+
+// La transferencia solo se ofrece si el backend tiene cuenta bancaria configurada.
+watch(isOpen, async (open) => {
+  if (!open || transferEnabled.value) return
+  try {
+    transferEnabled.value = (await getTransferConfig()).enabled
+  } catch {
+    transferEnabled.value = false
+  }
+})
 
 const step = computed<1 | 2 | 3>(() => (showPaymentBox.value ? 2 : 1))
 
@@ -43,7 +56,7 @@ const backToDetails = () => {
 const normalisedPhone = () =>
   form.value.phone.startsWith('+') ? form.value.phone : `+593${form.value.phone.replace(/\D/g, '').replace(/^0/, '')}`
 
-const buildOrder = (source: 'payphone' | 'whatsapp', clientTransactionId = ''): OrderPayload => ({
+const buildOrder = (source: OrderSource, clientTransactionId = ''): OrderPayload => ({
   customerName: form.value.name.trim(),
   customerEmail: form.value.email.trim(),
   customerPhone: form.value.phone.trim(),
@@ -146,6 +159,32 @@ const startPayphone = async () => {
   }
 }
 
+const completeByTransfer = async () => {
+  if (!form.value.name || !form.value.email || !form.value.phone || !form.value.address) {
+    error.value = 'Completa tus datos para registrar el pedido.'
+    return
+  }
+  if (cartStore.isEmpty) {
+    error.value = 'Tu carrito está vacío.'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+  try {
+    const { paymentToken } = await createOrder(buildOrder('transfer'))
+    if (!paymentToken) throw new Error('No recibimos el enlace de pago del pedido.')
+    cartStore.clearCart()
+    close()
+    // En su página de pago ve la cuenta y sube el comprobante.
+    await router.push({ name: 'PayOrder', params: { token: paymentToken } })
+  } catch (caught) {
+    error.value = errorMessage(caught, 'No pudimos registrar tu pedido. Intenta nuevamente.')
+  } finally {
+    loading.value = false
+  }
+}
+
 const completeByWhatsApp = async () => {
   if (!form.value.name || !form.value.email || !form.value.phone || !form.value.address) {
     error.value = 'Completa tus datos para enviar la solicitud al equipo Megaprinter.'
@@ -208,7 +247,9 @@ const completeByWhatsApp = async () => {
               v-model="form"
               :loading="loading"
               :error="error"
+              :transfer-enabled="transferEnabled"
               @pay="startPayphone"
+              @transfer="completeByTransfer"
               @whatsapp="completeByWhatsApp"
             />
             <PayphoneStage v-else :ready="boxReady" @back="backToDetails" />

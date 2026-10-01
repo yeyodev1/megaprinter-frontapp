@@ -8,6 +8,7 @@ import {
   listOrders,
   ORDER_STATUSES,
   orderStatusMeta,
+  reviewTransfer,
   updateOrderStatus,
   type Order,
   type OrderStatus,
@@ -15,7 +16,7 @@ import {
 import { errorMessage } from '@/services/http'
 import { useDialogStore } from '@/stores/dialog'
 import { useAdminEntrance } from '@/composables/useAdminEntrance'
-import { formatMoney } from '@/components/admin/orderHelpers'
+import { formatMoney, needsTransferReview, orderCode } from '@/components/admin/orderHelpers'
 
 useAdminEntrance()
 
@@ -32,6 +33,7 @@ const selected = ref<Order | null>(null)
 const search = ref('')
 const statusFilter = ref<string>('all')
 const sourceFilter = ref<string>('all')
+const reviewOnly = ref(false)
 
 const STATUS_VALUES = ORDER_STATUSES.map((meta) => meta.value as string)
 
@@ -44,7 +46,13 @@ const sourceOptions = [
   { value: 'all', label: 'Todos los orígenes', icon: 'fa-solid fa-layer-group' },
   { value: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp' },
   { value: 'payphone', label: 'Payphone', icon: 'fa-solid fa-credit-card' },
+  { value: 'transfer', label: 'Transferencia', icon: 'fa-solid fa-building-columns' },
+  { value: 'bot', label: 'Bot de WhatsApp', icon: 'fa-solid fa-robot' },
 ]
+
+const SOURCE_VALUES = sourceOptions.map((option) => option.value)
+
+const reviewCount = computed(() => orders.value.filter(needsTransferReview).length)
 
 const countByStatus = computed(() => {
   const counts: Record<string, number> = {}
@@ -55,14 +63,17 @@ const countByStatus = computed(() => {
 const filtered = computed(() => {
   const query = search.value.trim().toLocaleLowerCase()
   return orders.value.filter((order) => {
+    if (reviewOnly.value && !needsTransferReview(order)) return false
     if (statusFilter.value !== 'all' && order.status !== statusFilter.value) return false
-    if (sourceFilter.value !== 'all' && order.source !== sourceFilter.value) return false
+    if (sourceFilter.value === 'bot' && order.channel !== 'whatsapp_bot') return false
+    if (!['all', 'bot'].includes(sourceFilter.value) && order.source !== sourceFilter.value) return false
     if (!query) return true
     const haystack = [
       order.customerName,
       order.customerEmail,
       order.customerPhone,
       order._id,
+      orderCode(order),
       ...order.items.map((item) => item.name),
     ]
       .join(' ')
@@ -126,11 +137,43 @@ const changeStatus = async (order: Order, status: OrderStatus) => {
   }
 }
 
+const applyReview = async (order: Order, decision: 'approve' | 'reject', note: string) => {
+  const approve = decision === 'approve'
+  const confirmed = await dialog.confirm({
+    title: approve ? '¿Aprobar la transferencia?' : '¿Rechazar el comprobante?',
+    message: approve
+      ? 'El pedido pasará a «Pagado». Confírmalo solo si ya viste el dinero en la cuenta.'
+      : 'El pedido sigue pendiente y el cliente puede enviar otro comprobante.',
+    detail: `${orderCode(order)} · ${order.customerName} · ${formatMoney(order.totalAmount)}`,
+    confirmLabel: approve ? 'Aprobar pago' : 'Rechazar',
+    tone: approve ? 'success' : 'danger',
+    icon: approve ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark',
+  })
+  if (!confirmed) return
+
+  busyId.value = order._id
+  try {
+    const updated = await reviewTransfer(order._id, decision, note)
+    orders.value = orders.value.map((item) => (item._id === updated._id ? { ...item, ...updated } : item))
+    if (selected.value?._id === updated._id) selected.value = { ...selected.value, ...updated }
+    flash(approve ? `Pago de ${order.customerName} aprobado: el pedido está «Pagado».` : `Comprobante de ${order.customerName} rechazado.`)
+  } catch (caught) {
+    await dialog.notify({
+      title: 'No se pudo guardar la revisión',
+      message: errorMessage(caught, 'Intenta nuevamente en unos segundos.'),
+      tone: 'danger',
+    })
+  } finally {
+    busyId.value = ''
+  }
+}
+
 onMounted(() => {
   const status = route.query.status
   const source = route.query.source
   if (typeof status === 'string' && STATUS_VALUES.includes(status)) statusFilter.value = status
-  if (source === 'whatsapp' || source === 'payphone') sourceFilter.value = source
+  if (typeof source === 'string' && SOURCE_VALUES.includes(source)) sourceFilter.value = source
+  if (route.query.transfer === 'in_review') reviewOnly.value = true
   load()
 })
 </script>
@@ -158,6 +201,22 @@ onMounted(() => {
       </p>
     </Transition>
 
+    <button
+      v-if="reviewCount || reviewOnly"
+      type="button"
+      class="review-banner"
+      :class="{ active: reviewOnly }"
+      :aria-pressed="reviewOnly"
+      data-admin-reveal
+      @click="reviewOnly = !reviewOnly"
+    >
+      <i class="fa-solid fa-magnifying-glass-dollar" aria-hidden="true"></i>
+      <span>
+        <strong>{{ reviewCount }} {{ reviewCount === 1 ? 'comprobante' : 'comprobantes' }} por revisar</strong>
+        <small>{{ reviewOnly ? 'Mostrando solo transferencias por revisar · ver todos' : 'Transferencias que esperan tu aprobación' }}</small>
+      </span>
+    </button>
+
     <section class="status-strip" data-admin-reveal aria-label="Pedidos por estado">
       <button
         v-for="meta in ORDER_STATUSES"
@@ -181,7 +240,7 @@ onMounted(() => {
         <label class="search">
           <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
           <span class="visually-hidden">Buscar pedido</span>
-          <input v-model="search" type="search" placeholder="Cliente, correo, teléfono, producto o referencia" />
+          <input v-model="search" type="search" placeholder="Cliente, correo, teléfono, producto o N.º de pedido" />
         </label>
         <div class="filter">
           <AppSelect v-model="statusFilter" :options="statusOptions" size="sm" aria-label="Filtrar por estado" />
@@ -217,6 +276,7 @@ onMounted(() => {
       :busy="!!selected && busyId === selected._id"
       @close="selected = null"
       @change-status="changeStatus"
+      @review-transfer="applyReview"
     />
   </div>
 </template>
@@ -241,6 +301,37 @@ onMounted(() => {
 
 .notice {
   @include admin-notice;
+}
+
+.review-banner {
+  @include row($space-3);
+  width: 100%;
+  padding: $space-4 $space-5;
+  border: 1px solid $warning-500;
+  border-radius: $radius-md;
+  background: $warning-100;
+  color: $text-strong;
+  text-align: left;
+  cursor: pointer;
+  @include focus-ring;
+
+  > i {
+    color: $warning-500;
+    font-size: 1.25rem;
+  }
+
+  span {
+    @include stack(2px);
+  }
+
+  small {
+    color: $text-body;
+    font-size: $text-caption;
+  }
+
+  &.active {
+    box-shadow: 0 0 0 3px rgba($warning-500, 0.25);
+  }
 }
 
 .status-strip {

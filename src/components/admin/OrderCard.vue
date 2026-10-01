@@ -3,7 +3,17 @@ import { computed, ref, watch } from 'vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import OrderStatusBadge from '@/components/admin/OrderStatusBadge.vue'
 import { ORDER_STATUSES, type Order, type OrderStatus } from '@/services/orders'
-import { chatLink, formatDate, formatMoney, phoneLink, sourceIcon, sourceLabel } from '@/components/admin/orderHelpers'
+import {
+  chatLink,
+  formatDate,
+  formatMoney,
+  fromBot,
+  orderCode,
+  phoneLink,
+  sourceIcon,
+  sourceLabel,
+  TRANSFER_STATUS,
+} from '@/components/admin/orderHelpers'
 
 const props = defineProps<{ order: Order; busy: boolean }>()
 const emit = defineEmits<{ open: [order: Order]; changeStatus: [order: Order, status: OrderStatus] }>()
@@ -18,6 +28,10 @@ watch(
 
 const statusOptions = computed(() =>
   ORDER_STATUSES.map((meta) => ({ value: meta.value, label: meta.label, icon: meta.icon })),
+)
+
+const transferMeta = computed(() =>
+  props.order.source === 'transfer' && props.order.transfer?.status ? TRANSFER_STATUS[props.order.transfer.status] : null,
 )
 
 const onStatusChange = (value: string | number | null) => {
@@ -38,10 +52,27 @@ const onStatusChange = (value: string | number | null) => {
       <div class="top">
         <div class="identity">
           <h2>{{ order.customerName }}</h2>
-          <span class="source-label">{{ sourceLabel(order.source) }} · {{ formatDate(order.createdAt) }}</span>
+          <span class="source-label">
+            {{ orderCode(order) }} · {{ sourceLabel(order.source) }} · {{ formatDate(order.createdAt) }}
+          </span>
         </div>
-        <OrderStatusBadge :status="order.status" />
+        <div class="badges">
+          <span v-if="fromBot(order)" class="bot-tag"><i class="fa-solid fa-robot" aria-hidden="true"></i> Bot</span>
+          <OrderStatusBadge :status="order.status" />
+        </div>
       </div>
+
+      <button
+        v-if="transferMeta"
+        type="button"
+        class="transfer-chip"
+        :class="transferMeta.tone"
+        @click="emit('open', order)"
+      >
+        <i :class="transferMeta.icon" aria-hidden="true"></i>
+        {{ transferMeta.label }}
+        <span v-if="order.transfer?.status === 'in_review'" class="chip-cta">Revisar</span>
+      </button>
 
       <div class="contact">
         <a :href="`mailto:${order.customerEmail}`">
@@ -118,6 +149,11 @@ const onStatusChange = (value: string | number | null) => {
     background: $brand-100;
     color: $brand-600;
   }
+
+  &.transfer {
+    background: $warning-100;
+    color: $warning-500;
+  }
 }
 
 .body {
@@ -145,6 +181,57 @@ const onStatusChange = (value: string | number | null) => {
 
 .source-label {
   @include mono-data($text-muted, $text-eyebrow);
+}
+
+.badges {
+  @include row($space-2);
+  flex-wrap: wrap;
+}
+
+.bot-tag {
+  @include badge;
+  background: $surface-sunken;
+  color: $text-body;
+}
+
+.transfer-chip {
+  @include row($space-2);
+  align-self: flex-start;
+  padding: $space-2 $space-3;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-sm;
+  background: $surface-sunken;
+  color: $text-body;
+  font-size: $text-caption;
+  font-weight: $weight-semibold;
+  cursor: pointer;
+  @include focus-ring;
+
+  &.review {
+    border-color: $warning-500;
+    background: $warning-100;
+    color: $text-strong;
+
+    > i {
+      color: $warning-500;
+    }
+  }
+
+  &.approved > i {
+    color: $success-500;
+  }
+
+  &.rejected > i {
+    color: $danger-500;
+  }
+}
+
+.chip-cta {
+  padding: 2px $space-2;
+  border-radius: $radius-xs;
+  background: $key-900;
+  color: $text-on-dark;
+  font-size: $text-eyebrow;
 }
 
 .contact {

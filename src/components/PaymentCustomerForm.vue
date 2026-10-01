@@ -6,8 +6,8 @@ export interface CustomerDetails {
   address: string
 }
 
-defineProps<{ loading: boolean; error: string }>()
-const emit = defineEmits<{ pay: []; whatsapp: [] }>()
+withDefaults(defineProps<{ loading: boolean; error: string; transferEnabled?: boolean }>(), { transferEnabled: false })
+const emit = defineEmits<{ pay: []; whatsapp: []; transfer: [] }>()
 
 const form = defineModel<CustomerDetails>({ required: true })
 </script>
@@ -60,6 +60,10 @@ const form = defineModel<CustomerDetails>({ required: true })
       <button class="pay-action" type="submit" :disabled="loading">
         <i :class="loading ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-lock'" aria-hidden="true"></i>
         {{ loading ? 'Preparando pago…' : 'Continuar al pago seguro' }}
+      </button>
+
+      <button v-if="transferEnabled" class="transfer-action" type="button" :disabled="loading" @click="emit('transfer')">
+        <i class="fa-solid fa-building-columns" aria-hidden="true"></i> Pagar por transferencia
       </button>
 
       <span class="divider"><span>o</span></span>
@@ -135,6 +139,13 @@ const form = defineModel<CustomerDetails>({ required: true })
   min-height: 48px;
   border-radius: $radius-md;
   font-size: $text-body-md;
+}
+
+.transfer-action {
+  @include button-secondary;
+  width: 100%;
+  min-height: 48px;
+  border-radius: $radius-md;
 }
 
 .whatsapp-action {

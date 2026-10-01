@@ -39,6 +39,13 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: 'Confirmación de pago' },
   },
   {
+    // Enlace privado de pago: lo manda el bot de WhatsApp o llega tras el checkout por transferencia.
+    path: '/pagar/:token',
+    name: 'PayOrder',
+    component: () => import('../views/PayOrderView.vue'),
+    meta: { title: 'Pagar pedido' },
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/LoginView.vue'),
@@ -66,6 +73,12 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AdminOrders',
         component: () => import('../views/OrdersAdminView.vue'),
         meta: { title: 'Pedidos' },
+      },
+      {
+        path: 'payments',
+        name: 'AdminPayments',
+        component: () => import('../views/PaymentSettingsView.vue'),
+        meta: { title: 'Pagos' },
       },
       {
         path: 'users',

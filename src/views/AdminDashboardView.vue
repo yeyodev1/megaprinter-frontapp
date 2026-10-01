@@ -5,7 +5,7 @@ import OrderStatusBadge from '@/components/admin/OrderStatusBadge.vue'
 import { listOrders, type Order } from '@/services/orders'
 import { errorMessage } from '@/services/http'
 import { useAdminEntrance } from '@/composables/useAdminEntrance'
-import { formatDate, formatMoney, sourceIcon } from '@/components/admin/orderHelpers'
+import { formatDate, formatMoney, needsTransferReview, sourceIcon } from '@/components/admin/orderHelpers'
 
 useAdminEntrance()
 const router = useRouter()
@@ -22,7 +22,16 @@ const inProgress = computed(() =>
 const paidOrders = computed(() => orders.value.filter((o) => o.status === 'paid' || o.status === 'processing' || o.status === 'delivered'))
 const revenue = computed(() => paidOrders.value.reduce((sum, o) => sum + o.totalAmount, 0))
 const recent = computed(() => orders.value.slice(0, 6))
+const transfersToReview = computed(() => orders.value.filter(needsTransferReview).length)
 const attention = computed(() => whatsappPending.value + paymentPending.value)
+
+const ACTIVITY_TEXT: Record<Order['source'], string> = {
+  whatsapp: 'Solicitó contacto por WhatsApp',
+  payphone: 'Inició un pago con Payphone',
+  transfer: 'Pagará por transferencia',
+}
+const activityText = (order: Order) =>
+  `${ACTIVITY_TEXT[order.source] ?? 'Registró un pedido'}${order.channel === 'whatsapp_bot' ? ' · vía bot' : ''}`
 
 const goToOrders = (query: Record<string, string> = {}) => router.push({ name: 'AdminOrders', query })
 
@@ -97,6 +106,10 @@ onMounted(load)
             <span><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Pagos sin confirmar</span>
             <strong>{{ paymentPending }}</strong>
           </li>
+          <li>
+            <span><i class="fa-solid fa-magnifying-glass-dollar" aria-hidden="true"></i> Comprobantes por revisar</span>
+            <strong>{{ transfersToReview }}</strong>
+          </li>
         </ul>
 
         <div class="attention-actions">
@@ -105,6 +118,9 @@ onMounted(load)
           </button>
           <button type="button" class="ghost" @click="goToOrders({ status: 'pending' })">
             <i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Revisar pagos
+          </button>
+          <button v-if="transfersToReview" type="button" class="ghost" @click="goToOrders({ transfer: 'in_review' })">
+            <i class="fa-solid fa-magnifying-glass-dollar" aria-hidden="true"></i> Revisar comprobantes
           </button>
         </div>
       </section>
@@ -129,7 +145,7 @@ onMounted(load)
             </div>
             <div class="entry-copy">
               <strong>{{ order.customerName }}</strong>
-              <span>{{ order.source === 'whatsapp' ? 'Solicitó contacto por WhatsApp' : 'Inició un pago con Payphone' }}</span>
+              <span>{{ activityText(order) }}</span>
               <small>{{ formatDate(order.createdAt) }}</small>
             </div>
             <div class="entry-amount">
@@ -373,6 +389,11 @@ onMounted(load)
   &.payphone {
     background: $brand-100;
     color: $brand-600;
+  }
+
+  &.transfer {
+    background: $warning-100;
+    color: $warning-500;
   }
 }
 
