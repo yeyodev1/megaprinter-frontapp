@@ -319,6 +319,16 @@ const request = (status: OrderStatus | null) => {
 
         <p class="hint">Cada cambio de estado le llega al cliente por correo.</p>
 
+        <ul v-if="order.emailLog?.length" class="emails" aria-label="Correos enviados">
+          <li v-for="(email, index) in order.emailLog" :key="index" :class="{ failed: !email.ok }">
+            <i :class="email.ok ? 'fa-solid fa-circle-check' : 'fa-solid fa-triangle-exclamation'" aria-hidden="true"></i>
+            <span>
+              {{ email.kind }} · {{ email.to }} · {{ formatDate(email.at) }}
+              <template v-if="!email.ok"> · <strong>no se envió</strong> ({{ email.error }})</template>
+            </span>
+          </li>
+        </ul>
+
         <div class="status-actions">
           <button v-if="nextStatus" type="button" class="advance" :disabled="busy" @click="request(nextStatus)">
             <i :class="busy ? 'fa-solid fa-spinner fa-spin' : orderStatusMeta(nextStatus).icon" aria-hidden="true"></i>
@@ -454,6 +464,29 @@ const request = (status: OrderStatus | null) => {
   @include button-secondary;
   width: 100%;
   justify-content: flex-start;
+}
+
+.emails {
+  @include stack(4px);
+  font-size: $text-caption;
+
+  li {
+    @include row($space-2, flex-start);
+    color: $text-body;
+
+    i {
+      margin-top: 2px;
+      color: $success-500;
+    }
+
+    &.failed {
+      color: $danger-500;
+
+      i {
+        color: $danger-500;
+      }
+    }
+  }
 }
 
 .history {

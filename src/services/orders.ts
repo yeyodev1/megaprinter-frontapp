@@ -62,6 +62,7 @@ export interface Order {
   transfer?: OrderTransfer
   shipping?: OrderShipping
   statusHistory?: Array<{ status: OrderStatus; at: string; by?: string }>
+  emailLog?: Array<{ kind: string; to: string; ok: boolean; error?: string; at: string }>
   createdAt: string
   updatedAt?: string
 }

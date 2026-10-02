@@ -76,6 +76,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: 'Bot de WhatsApp' },
       },
       {
+        path: 'tickets',
+        name: 'AdminTickets',
+        component: () => import('../views/TicketsAdminView.vue'),
+        meta: { title: 'Servicio técnico' },
+      },
+      {
         path: 'catalog',
         name: 'CatalogAdmin',
         component: () => import('../views/CatalogAdminView.vue'),

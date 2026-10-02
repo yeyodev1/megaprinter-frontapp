@@ -19,6 +19,7 @@ const sections = [
       { to: '/admin', name: 'AdminDashboard', label: 'Resumen', hint: 'Actividad y métricas', icon: 'fa-solid fa-chart-line' },
       { to: '/admin/orders', name: 'AdminOrders', label: 'Pedidos', hint: 'Estados y clientes', icon: 'fa-solid fa-receipt' },
       { to: '/admin/bot', name: 'AdminBot', label: 'Bot WhatsApp', hint: 'Conversaciones en vivo', icon: 'fa-brands fa-whatsapp' },
+      { to: '/admin/tickets', name: 'AdminTickets', label: 'Servicio técnico', hint: 'Tickets y suministros', icon: 'fa-solid fa-screwdriver-wrench' },
       { to: '/admin/catalog', name: 'CatalogAdmin', label: 'Catálogo', hint: 'Productos y categorías', icon: 'fa-solid fa-boxes-stacked' },
     ],
   },

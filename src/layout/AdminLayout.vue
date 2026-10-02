@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminSidebar from '@/components/admin/AdminSidebar.vue'
+import AlertsBell from '@/components/admin/AlertsBell.vue'
 import BrandMark from '@/components/BrandMark.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -34,6 +35,7 @@ onMounted(() => auth.loadUser())
     </Transition>
 
     <AdminSidebar :open="menuOpen" @close="menuOpen = false" />
+    <AlertsBell />
 
     <main id="contenido" class="content">
       <router-view v-slot="{ Component }">
