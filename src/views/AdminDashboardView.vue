@@ -17,9 +17,9 @@ const error = ref('')
 const whatsappPending = computed(() => orders.value.filter((o) => o.status === 'whatsapp').length)
 const paymentPending = computed(() => orders.value.filter((o) => o.status === 'pending').length)
 const inProgress = computed(() =>
-  orders.value.filter((o) => o.status === 'paid' || o.status === 'processing').length,
+  orders.value.filter((o) => o.status === 'paid' || o.status === 'processing' || o.status === 'shipped').length,
 )
-const paidOrders = computed(() => orders.value.filter((o) => o.status === 'paid' || o.status === 'processing' || o.status === 'delivered'))
+const paidOrders = computed(() => orders.value.filter((o) => ['paid', 'processing', 'shipped', 'delivered'].includes(o.status)))
 const revenue = computed(() => paidOrders.value.reduce((sum, o) => sum + o.totalAmount, 0))
 const recent = computed(() => orders.value.slice(0, 6))
 const transfersToReview = computed(() => orders.value.filter(needsTransferReview).length)

@@ -46,6 +46,13 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: 'Pagar pedido' },
   },
   {
+    // Seguimiento del pedido: por correo o código MP-, o directo desde el enlace del correo.
+    path: '/pedido/:token?',
+    name: 'TrackOrder',
+    component: () => import('../views/TrackOrderView.vue'),
+    meta: { title: 'Seguimiento de pedido' },
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/LoginView.vue'),

@@ -10,6 +10,7 @@ import {
   orderStatusMeta,
   reviewTransfer,
   updateOrderStatus,
+  updateShipping,
   type Order,
   type OrderStatus,
 } from '@/services/orders'
@@ -53,6 +54,8 @@ const sourceOptions = [
 const SOURCE_VALUES = sourceOptions.map((option) => option.value)
 
 const reviewCount = computed(() => orders.value.filter(needsTransferReview).length)
+// Pagados que todavía no se preparan: el equipo tiene que moverlos.
+const toPrepareCount = computed(() => orders.value.filter((order) => order.status === 'paid').length)
 
 const countByStatus = computed(() => {
   const counts: Record<string, number> = {}
@@ -125,7 +128,7 @@ const changeStatus = async (order: Order, status: OrderStatus) => {
     const updated = await updateOrderStatus(order._id, status)
     orders.value = orders.value.map((item) => (item._id === updated._id ? { ...item, ...updated } : item))
     if (selected.value?._id === updated._id) selected.value = { ...selected.value, ...updated }
-    flash(`Pedido de ${order.customerName} ahora está en «${to}».`)
+    flash(`Pedido de ${order.customerName} ahora está en «${to}». Le enviamos un correo con la novedad.`)
   } catch (caught) {
     await dialog.notify({
       title: 'No se pudo cambiar el estado',
@@ -163,6 +166,20 @@ const applyReview = async (order: Order, decision: 'approve' | 'reject', note: s
       message: errorMessage(caught, 'Intenta nuevamente en unos segundos.'),
       tone: 'danger',
     })
+  } finally {
+    busyId.value = ''
+  }
+}
+
+const saveShipping = async (order: Order, data: { carrier: string; trackingNumber: string; file: File | null }) => {
+  busyId.value = order._id
+  try {
+    const updated = await updateShipping(order._id, data)
+    orders.value = orders.value.map((item) => (item._id === updated._id ? { ...item, ...updated } : item))
+    if (selected.value?._id === updated._id) selected.value = { ...selected.value, ...updated }
+    flash(`Guía guardada: el pedido de ${order.customerName} está «Enviado» y le llegó la guía por correo.`)
+  } catch (caught) {
+    await dialog.notify({ title: 'No se pudo guardar la guía', message: errorMessage(caught, 'Intenta nuevamente.'), tone: 'danger' })
   } finally {
     busyId.value = ''
   }
@@ -215,6 +232,20 @@ onMounted(() => {
       <span>
         <strong>{{ reviewCount }} {{ reviewCount === 1 ? 'comprobante' : 'comprobantes' }} por revisar</strong>
         <small>{{ reviewOnly ? 'Mostrando solo transferencias por revisar · ver todos' : 'Transferencias que esperan tu aprobación' }}</small>
+      </span>
+    </button>
+
+    <button
+      v-if="toPrepareCount && statusFilter !== 'paid'"
+      type="button"
+      class="review-banner prepare"
+      data-admin-reveal
+      @click="statusFilter = 'paid'"
+    >
+      <i class="fa-solid fa-sack-dollar" aria-hidden="true"></i>
+      <span>
+        <strong>{{ toPrepareCount }} {{ toPrepareCount === 1 ? 'pedido pagado' : 'pedidos pagados' }} por preparar</strong>
+        <small>El pago ya está confirmado. Pásalos a «En preparación» y carga la guía cuando salgan.</small>
       </span>
     </button>
 
@@ -278,6 +309,7 @@ onMounted(() => {
       @close="selected = null"
       @change-status="changeStatus"
       @review-transfer="applyReview"
+      @save-shipping="saveShipping"
     />
   </div>
 </template>
@@ -335,6 +367,15 @@ onMounted(() => {
   }
 }
 
+.review-banner.prepare {
+  border-color: $success-500;
+  background: $success-100;
+
+  > i {
+    color: $success-500;
+  }
+}
+
 .status-strip {
   display: flex;
   flex-wrap: wrap;
@@ -374,6 +415,11 @@ onMounted(() => {
   &.processing > i {
     background: $brand-100;
     color: $brand-700;
+  }
+
+  &.shipped > i {
+    background: $brand-100;
+    color: $cyan-dark;
   }
 
   &.delivered > i {

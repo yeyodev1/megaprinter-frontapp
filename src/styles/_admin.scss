@@ -239,6 +239,11 @@
     color: $brand-700;
   }
 
+  &.shipped {
+    background: $brand-100;
+    color: $cyan-dark;
+  }
+
   &.delivered {
     background: $key-900;
     color: $text-on-dark;

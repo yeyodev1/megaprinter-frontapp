@@ -12,6 +12,7 @@ const menuOpen = ref(false)
 const links = [
   { to: '/products', label: 'Productos' },
   { to: '/repairs', label: 'Taller técnico' },
+  { to: '/pedido', label: 'Mi pedido' },
   { to: '/#contacto', label: 'Contacto' },
 ]
 
@@ -72,7 +73,8 @@ const onKeydown = (event: KeyboardEvent) => {
           <router-link to="/" @click="closeMenu"><b>01</b> Inicio <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></router-link>
           <router-link to="/products" @click="closeMenu"><b>02</b> Productos <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></router-link>
           <router-link to="/repairs" @click="closeMenu"><b>03</b> Taller <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></router-link>
-          <router-link to="/#contacto" @click="closeMenu"><b>04</b> Contacto <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></router-link>
+          <router-link to="/pedido" @click="closeMenu"><b>04</b> Mi pedido <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></router-link>
+          <router-link to="/#contacto" @click="closeMenu"><b>05</b> Contacto <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></router-link>
         </div>
         <div class="menu-footer">
           <span>Guayaquil, Ecuador</span>

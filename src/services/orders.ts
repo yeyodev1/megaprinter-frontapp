@@ -1,6 +1,6 @@
 import { http } from '@/services/http'
 
-export type OrderStatus = 'pending' | 'whatsapp' | 'paid' | 'processing' | 'delivered' | 'cancelled'
+export type OrderStatus = 'pending' | 'whatsapp' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
 
 export interface OrderItem {
   name: string
@@ -39,6 +39,13 @@ export interface OrderTransfer {
   note?: string
 }
 
+export interface OrderShipping {
+  carrier?: string
+  trackingNumber?: string
+  guideUrl?: string
+  shippedAt?: string
+}
+
 export interface Order {
   _id: string
   orderNumber?: string
@@ -53,6 +60,8 @@ export interface Order {
   whatsappPhone?: string
   status: OrderStatus
   transfer?: OrderTransfer
+  shipping?: OrderShipping
+  statusHistory?: Array<{ status: OrderStatus; at: string; by?: string }>
   createdAt: string
   updatedAt?: string
 }
@@ -89,6 +98,9 @@ export interface PayphoneConfirmation {
   statusCode?: number
   transactionStatus?: string
   message?: string
+  orderNumber?: string
+  channel?: 'web' | 'whatsapp_bot'
+  token?: string
 }
 
 export const confirmPayphonePayment = async (id: string, clientTransactionId: string) =>
@@ -113,7 +125,8 @@ export const ORDER_STATUSES: OrderStatusMeta[] = [
   { value: 'pending', label: 'Pago pendiente', description: 'Pago con tarjeta o transferencia sin confirmar', icon: 'fa-solid fa-hourglass-half' },
   { value: 'paid', label: 'Pagado', description: 'Pago aprobado o acordado con el cliente', icon: 'fa-solid fa-circle-check' },
   { value: 'processing', label: 'En preparación', description: 'Se está alistando el pedido', icon: 'fa-solid fa-box-open' },
-  { value: 'delivered', label: 'Entregado', description: 'El cliente ya recibió su pedido', icon: 'fa-solid fa-truck-fast', final: true },
+  { value: 'shipped', label: 'Enviado', description: 'Salió con su guía de envío', icon: 'fa-solid fa-truck-fast' },
+  { value: 'delivered', label: 'Entregado', description: 'El cliente ya recibió su pedido', icon: 'fa-solid fa-house-circle-check', final: true },
   { value: 'cancelled', label: 'Cancelado', description: 'El pedido no se concretó', icon: 'fa-solid fa-ban', final: true },
 ]
 
@@ -184,3 +197,34 @@ export const uploadTransferReceipt = async (token: string, file: File) => {
   body.append('receipt', file)
   return (await http.post<PaymentOrder>(`/orders/pay/${encodeURIComponent(token)}/receipt`, body, { timeout: 60000 })).data
 }
+
+/** Guía de envío (multipart): transportista, número y archivo opcional. Pasa el pedido a «Enviado». */
+export const updateShipping = async (id: string, data: { carrier: string; trackingNumber: string; file?: File | null }) => {
+  const body = new FormData()
+  body.append('carrier', data.carrier)
+  body.append('trackingNumber', data.trackingNumber)
+  if (data.file) body.append('guide', data.file)
+  return (await http.patch<Order>(`/orders/${id}/shipping`, body, { timeout: 60000 })).data
+}
+
+/** Lo que el cliente ve de su pedido en /pedido. */
+export interface TrackedOrder {
+  orderNumber: string
+  token: string
+  customerName: string
+  createdAt: string
+  items: OrderItem[]
+  totalAmount: number
+  status: OrderStatus
+  source: OrderSource
+  channel: 'web' | 'whatsapp_bot'
+  transferStatus: TransferStatus | null
+  statusHistory: Array<{ status: OrderStatus; at: string }>
+  shipping: OrderShipping | null
+}
+
+export const trackOrders = async (query: string) =>
+  (await http.get<TrackedOrder[]>('/orders/track', { params: { q: query } })).data
+
+export const trackOrderByToken = async (token: string) =>
+  (await http.get<TrackedOrder>(`/orders/track/${encodeURIComponent(token)}`)).data

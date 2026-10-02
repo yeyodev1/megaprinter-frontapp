@@ -14,6 +14,11 @@ type Status = 'loading' | 'approved' | 'cancelled' | 'failed'
 
 const status = ref<Status>('loading')
 const details = ref('')
+const orderNumber = ref('')
+const orderToken = ref('')
+const fromBot = ref(false)
+// Si compró por WhatsApp, vuelve al chat con "pagado" listo para enviar: Mila confirma el pago ahí.
+const backToChat = computed(() => whatsappLink(`pagado ${orderNumber.value}`.trim()))
 const clientTransactionId = String(route.query.clientTransactionId || '')
 
 const supportLink = whatsappLink(
@@ -33,7 +38,7 @@ const title = computed(
 const message = computed(() => {
   if (status.value === 'loading') return 'Estamos validando la transacción con Payphone.'
   if (status.value === 'approved')
-    return 'Tu transacción fue aprobada. Nuestro equipo recibirá la confirmación para continuar con tu pedido.'
+    return 'Tu transacción fue aprobada. Te enviamos la confirmación a tu correo y nuestro equipo continúa con tu pedido.'
   if (status.value === 'cancelled')
     return 'La transacción fue cancelada en Payphone. No se acreditó ningún cobro; puedes volver a intentarlo cuando quieras.'
   return details.value || 'Comunícate con nosotros por WhatsApp para revisar tu pedido.'
@@ -59,6 +64,9 @@ onMounted(async () => {
 
   try {
     const data = await confirmPayphonePayment(String(id), clientTransactionId)
+    orderNumber.value = data.orderNumber ?? ''
+    orderToken.value = data.token ?? ''
+    fromBot.value = data.channel === 'whatsapp_bot'
     if (data.statusCode === 3 && data.transactionStatus === 'Approved') {
       status.value = 'approved'
       // El carrito seguia lleno despues de pagar: al volver al sitio el cliente
@@ -93,7 +101,13 @@ onMounted(async () => {
       </p>
 
       <div v-if="status !== 'loading'" class="actions">
-        <router-link to="/" class="primary">Volver al inicio</router-link>
+        <a v-if="status === 'approved' && fromBot" :href="backToChat" class="primary whatsapp">
+          <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Volver a WhatsApp
+        </a>
+        <router-link v-if="status === 'approved' && orderToken" :to="{ name: 'TrackOrder', params: { token: orderToken } }" :class="fromBot ? 'ghost' : 'primary'">
+          Ver mi pedido {{ orderNumber }}
+        </router-link>
+        <router-link v-else to="/" class="primary">Volver al inicio</router-link>
         <a v-if="status !== 'approved'" :href="supportLink" target="_blank" rel="noopener" class="ghost">
           <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Hablar con soporte
         </a>
@@ -170,6 +184,11 @@ h1 {
 
 .primary {
   @include button-primary;
+  padding: $space-3 $space-6;
+}
+
+.primary.whatsapp {
+  @include button-whatsapp;
   padding: $space-3 $space-6;
 }
 

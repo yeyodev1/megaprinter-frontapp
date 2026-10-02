@@ -54,5 +54,6 @@ export const orderPath = (order: Order): OrderStatus[] => [
   initialStatus(order),
   'paid',
   'processing',
+  'shipped',
   'delivered',
 ]

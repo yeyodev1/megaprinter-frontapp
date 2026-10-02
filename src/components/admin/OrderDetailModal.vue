@@ -22,7 +22,28 @@ const emit = defineEmits<{
   close: []
   changeStatus: [order: Order, status: OrderStatus]
   reviewTransfer: [order: Order, decision: 'approve' | 'reject', note: string]
+  saveShipping: [order: Order, data: { carrier: string; trackingNumber: string; file: File | null }]
 }>()
+
+// Guía de envío: al guardarla el pedido pasa a «Enviado» y el cliente la recibe por correo.
+const shippingForm = ref({ carrier: '', trackingNumber: '' })
+const guideFile = ref<File | null>(null)
+const guideInput = ref<HTMLInputElement | null>(null)
+watch(
+  () => props.order?._id,
+  () => {
+    shippingForm.value = { carrier: props.order?.shipping?.carrier ?? '', trackingNumber: props.order?.shipping?.trackingNumber ?? '' }
+    guideFile.value = null
+  },
+  { immediate: true },
+)
+const canShip = computed(() => !!props.order && ['paid', 'processing', 'shipped'].includes(props.order.status))
+const onGuideFile = (event: Event) => {
+  guideFile.value = (event.target as HTMLInputElement).files?.[0] ?? null
+}
+const submitShipping = () => {
+  if (props.order) emit('saveShipping', props.order, { ...shippingForm.value, file: guideFile.value })
+}
 
 const transfer = computed(() => (props.order?.source === 'transfer' ? props.order.transfer ?? {} : null))
 const transferMeta = computed(() => (transfer.value?.status ? TRANSFER_STATUS[transfer.value.status] : null))
@@ -61,6 +82,7 @@ const stepState = (index: number) => {
 const ADVANCE_LABEL: Partial<Record<OrderStatus, string>> = {
   paid: 'Marcar como pagado',
   processing: 'Pasar a preparación',
+  shipped: 'Marcar enviado',
   delivered: 'Marcar entregado',
 }
 
@@ -237,6 +259,40 @@ const request = (status: OrderStatus | null) => {
         </div>
       </section>
 
+      <section v-if="canShip || order.shipping?.trackingNumber || order.shipping?.guideUrl" class="block shipping">
+        <p class="eyebrow">Guía de envío</p>
+        <p v-if="order.shipping?.guideUrl || order.shipping?.trackingNumber" class="shipping-current">
+          <i class="fa-solid fa-truck-fast" aria-hidden="true"></i>
+          <span>
+            {{ order.shipping?.carrier || 'Transportista' }}
+            <template v-if="order.shipping?.trackingNumber"> · <span class="mono">{{ order.shipping.trackingNumber }}</span></template>
+            <template v-if="order.shipping?.shippedAt"> · {{ formatDate(order.shipping.shippedAt) }}</template>
+          </span>
+          <a v-if="order.shipping?.guideUrl" :href="order.shipping.guideUrl" target="_blank" rel="noopener">Ver guía</a>
+        </p>
+        <form v-if="canShip" class="shipping-form" @submit.prevent="submitShipping">
+          <label class="note">
+            <span>Transportista</span>
+            <input v-model="shippingForm.carrier" maxlength="80" placeholder="Servientrega, Tramaco, Laar…" />
+          </label>
+          <label class="note">
+            <span>N.º de guía</span>
+            <input v-model="shippingForm.trackingNumber" maxlength="80" placeholder="Número de guía" />
+          </label>
+          <div class="guide-file">
+            <input ref="guideInput" type="file" accept="image/*,application/pdf" class="visually-hidden" @change="onGuideFile" />
+            <button type="button" class="file-btn" @click="guideInput?.click()">
+              <i class="fa-solid fa-paperclip" aria-hidden="true"></i> {{ guideFile ? guideFile.name : 'Adjuntar guía (PDF o foto)' }}
+            </button>
+          </div>
+          <button type="submit" class="approve" :disabled="busy">
+            <i :class="busy ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-paper-plane'" aria-hidden="true"></i>
+            {{ order.status === 'shipped' ? 'Actualizar guía y avisar' : 'Guardar guía y marcar enviado' }}
+          </button>
+          <p class="hint">El cliente recibe la guía por correo y la ve en su página de seguimiento.</p>
+        </form>
+      </section>
+
       <section class="block">
         <p class="eyebrow">Estado del pedido</p>
 
@@ -254,6 +310,14 @@ const request = (status: OrderStatus | null) => {
           <i class="fa-solid fa-ban" aria-hidden="true"></i>
           Este pedido está cancelado. Puedes reabrirlo para retomar el flujo.
         </p>
+
+        <ul v-if="order.statusHistory?.length" class="history">
+          <li v-for="(entry, index) in order.statusHistory" :key="index">
+            <strong>{{ orderStatusMeta(entry.status).label }}</strong> · {{ formatDate(entry.at) }}<template v-if="entry.by"> · {{ entry.by }}</template>
+          </li>
+        </ul>
+
+        <p class="hint">Cada cambio de estado le llega al cliente por correo.</p>
 
         <div class="status-actions">
           <button v-if="nextStatus" type="button" class="advance" :disabled="busy" @click="request(nextStatus)">
@@ -345,6 +409,57 @@ const request = (status: OrderStatus | null) => {
     background: $danger-100;
     color: $danger-500;
   }
+}
+
+.shipping-current {
+  @include row($space-2);
+  flex-wrap: wrap;
+  padding: $space-2 $space-3;
+  border-radius: $radius-sm;
+  background: $brand-100;
+  font-size: $text-body-sm;
+
+  i {
+    color: $cyan-dark;
+  }
+
+  .mono {
+    @include mono-data($text-strong, $text-caption);
+  }
+
+  a {
+    margin-left: auto;
+    color: $cyan-dark;
+    font-weight: $weight-semibold;
+  }
+}
+
+.shipping-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-3;
+
+  .note {
+    flex: 1 1 200px;
+  }
+
+  .guide-file,
+  .approve,
+  .hint {
+    flex: 1 1 100%;
+  }
+}
+
+.file-btn {
+  @include button-secondary;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.history {
+  @include stack(2px);
+  color: $text-body;
+  font-size: $text-caption;
 }
 
 .transfer-account {

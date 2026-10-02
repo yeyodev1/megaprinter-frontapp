@@ -210,7 +210,9 @@ onMounted(load)
         </h1>
         <p class="lead">
           Hola {{ order.customerName.split(' ')[0] }},
-          <template v-if="isPaid">recibimos tu pago. Te contactamos para coordinar la entrega.</template>
+          <template v-if="isPaid">recibimos tu pago. Te contactamos para coordinar la entrega.
+            <router-link :to="{ name: 'TrackOrder', params: { token } }">Ver el seguimiento</router-link>
+          </template>
           <template v-else-if="isCancelled">este pedido fue cancelado. Si es un error, escríbenos.</template>
           <template v-else-if="order.source === 'whatsapp'">un asesor te contactará para coordinar el pago.</template>
           <template v-else>este es el resumen de tu pedido.</template>
@@ -242,7 +244,7 @@ onMounted(load)
         <!-- Transferencia -->
         <template v-if="order.source === 'transfer' && !isPaid && !isCancelled">
           <section v-if="!order.bank && order.banks.length" class="bank-choice" aria-label="Elige tu banco">
-            <p class="section-title"><i class="fa-solid fa-building-columns" aria-hidden="true"></i> A qué banco prefieres transferir?</p>
+            <p class="section-title"><i class="fa-solid fa-building-columns" aria-hidden="true"></i> ¿A qué banco prefieres transferir?</p>
             <div class="bank-options">
               <button
                 v-for="account in order.banks"
