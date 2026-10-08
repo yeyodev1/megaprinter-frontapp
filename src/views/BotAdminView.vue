@@ -50,14 +50,17 @@ const FILTERS = [
   { value: 'error', label: '⚠️ Con error' },
 ] as const
 
+// Lo más reciente arriba.
 const visible = computed(() =>
-  conversations.value.filter((item) => {
-    if (filter.value === 'human') return item.withHuman
-    if (filter.value === 'cart') return item.cartCount > 0 && !item.orderNumber
-    if (filter.value === 'ordered') return Boolean(item.orderNumber)
-    if (filter.value === 'error') return item.lastError
-    return true
-  }),
+  conversations.value
+    .filter((item) => {
+      if (filter.value === 'human') return item.withHuman
+      if (filter.value === 'cart') return item.cartCount > 0 && !item.orderNumber
+      if (filter.value === 'ordered') return Boolean(item.orderNumber)
+      if (filter.value === 'error') return item.lastError
+      return true
+    })
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
 )
 
 const topRoutes = computed(() =>
@@ -161,8 +164,8 @@ onBeforeUnmount(() => clearInterval(timer))
     <header class="page-header" data-admin-reveal>
       <div>
         <p class="eyebrow"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Bot de WhatsApp</p>
-        <h1>Qué está pasando<br /><em>en vivo.</em></h1>
-        <p>Cada conversación, lo que decidió el bot y lo que respondió cada flujo de BuilderBot.</p>
+        <h1>Conversaciones <em>en vivo</em></h1>
+        <p>Cada chat con Mila, lo que decidió el bot y lo que respondió cada flujo de BuilderBot.</p>
       </div>
       <button type="button" class="live" :class="{ on: live }" :aria-pressed="live" @click="live = !live">
         <span class="dot" aria-hidden="true"></span>
@@ -173,35 +176,42 @@ onBeforeUnmount(() => clearInterval(timer))
 
     <section class="stats" data-admin-reveal aria-label="Últimas 24 horas">
       <article>
-        <span>Conversaciones</span>
+        <span class="stat-icon"><i class="fa-solid fa-comments" aria-hidden="true"></i></span>
         <strong>{{ stats?.conversations ?? '—' }}</strong>
+        <span>Conversaciones</span>
         <small>últimas 24 h</small>
       </article>
       <article>
-        <span>Mensajes atendidos</span>
+        <span class="stat-icon"><i class="fa-solid fa-bolt" aria-hidden="true"></i></span>
         <strong>{{ stats?.messages ?? '—' }}</strong>
-        <small>respuesta media {{ stats ? (stats.avgResponseMs / 1000).toFixed(1) : '—' }} s</small>
+        <span>Mensajes atendidos</span>
+        <small>responde en {{ stats ? (stats.avgResponseMs / 1000).toFixed(1) : '—' }} s</small>
       </article>
-      <article>
-        <span>Pedidos del bot</span>
+      <article class="ok">
+        <span class="stat-icon"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i></span>
         <strong>{{ stats?.orders ?? '—' }}</strong>
+        <span>Pedidos del bot</span>
         <small>${{ stats?.ordersTotal.toFixed(2) ?? '0.00' }}</small>
       </article>
       <article :class="{ warn: (stats?.toHuman ?? 0) > 0 }">
-        <span>A un asesor</span>
+        <span class="stat-icon"><i class="fa-solid fa-headset" aria-hidden="true"></i></span>
         <strong>{{ stats?.toHuman ?? '—' }}</strong>
-        <small>🙋 derivados</small>
+        <span>Pasaron a un asesor</span>
+        <small>en 24 h</small>
       </article>
       <article :class="{ danger: (stats?.errors ?? 0) > 0 }">
-        <span>Errores</span>
+        <span class="stat-icon"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></span>
         <strong>{{ stats?.errors ?? '—' }}</strong>
+        <span>Errores</span>
         <small>{{ stats?.errors ? 'revisa la actividad' : 'todo en orden' }}</small>
       </article>
     </section>
 
     <section v-if="topRoutes.length" class="routes" data-admin-reveal aria-label="Decisiones de /brain en 24 h">
-      <span class="routes-title">🧠 Principal decidió (24 h):</span>
-      <span v-for="item in topRoutes" :key="item.key" class="route-chip">{{ item.label }} <strong>{{ item.count }}</strong></span>
+      <span class="routes-title"><i class="fa-solid fa-brain" aria-hidden="true"></i> Lo que decidió el bot en 24 h</span>
+      <span class="route-list">
+        <span v-for="item in topRoutes" :key="item.key" class="route-chip">{{ item.label }} <strong>{{ item.count }}</strong></span>
+      </span>
     </section>
 
     <p v-if="listError" class="notice error" role="alert">
@@ -264,30 +274,33 @@ onBeforeUnmount(() => clearInterval(timer))
 .live {
   @include row($space-2);
   align-self: flex-start;
+  min-height: 40px;
   padding: $space-2 $space-4;
   border: 1px solid $border-subtle;
   border-radius: $radius-pill;
   background: $surface-card;
   color: $text-muted;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
   font-weight: $weight-semibold;
   cursor: pointer;
+  transition: border-color $duration-base $ease-out;
   @include focus-ring;
 
   small {
-    @include mono-data($text-muted, 0.625rem);
+    @include mono-data($text-muted, $admin-text-xs);
   }
 
   .dot {
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
     border-radius: $radius-pill;
     background: $key-300;
   }
 
   &.on {
-    border-color: $success-500;
-    color: $text-strong;
+    border-color: rgba($success-500, 0.45);
+    background: $success-100;
+    color: $success-500;
 
     .dot {
       background: $success-500;
@@ -309,69 +322,126 @@ onBeforeUnmount(() => clearInterval(timer))
   }
 }
 
+// Movil: franja deslizable (cinco tarjetas apiladas ocupaban dos pantallas).
 .stats {
   display: flex;
-  flex-wrap: wrap;
-  gap: $space-2;
+  gap: $space-3;
+  overflow-x: auto;
+  margin-inline: calc(-1 * #{$space-4});
+  padding: 2px $space-4 $space-1;
+  scroll-padding-inline: $space-4;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
 
   article {
     @include stack(2px);
-    flex: 1 1 140px;
-    padding: $space-3 $space-4;
+    flex: 0 0 156px;
+    scroll-snap-align: start;
+    padding: $space-4 $space-5;
     border: 1px solid $border-subtle;
-    border-radius: $radius-md;
+    border-radius: $radius-lg;
     background: $surface-card;
+    box-shadow: $shadow-xs;
 
-    span {
-      @include field-label;
+    > span:not(.stat-icon) {
+      color: $text-strong;
+      font-size: $admin-text-sm;
+      font-weight: $weight-semibold;
     }
 
     strong {
-      font-size: 1.5rem;
+      margin-top: $space-2;
+      color: $text-strong;
+      font-family: $font-display;
+      font-size: 1.75rem;
       font-weight: $weight-black;
       line-height: 1.1;
+      font-variant-numeric: tabular-nums;
     }
 
     small {
       color: $text-muted;
-      font-size: $text-eyebrow;
+      font-size: $admin-text-xs;
+    }
+
+    &.ok .stat-icon {
+      background: $success-100;
+      color: $success-500;
     }
 
     &.warn {
-      border-color: $warning-500;
+      border-color: rgba($yellow-deep, 0.35);
+      background: $yellow-wash;
+
+      .stat-icon {
+        background: $surface-card;
+        color: $yellow-deep;
+      }
     }
 
     &.danger {
-      border-color: $danger-500;
+      border-color: rgba($danger-500, 0.35);
+      background: $danger-100;
 
       strong {
+        color: $danger-500;
+      }
+
+      .stat-icon {
+        background: $surface-card;
         color: $danger-500;
       }
     }
   }
 }
 
-.routes {
+.stat-icon {
   display: flex;
-  flex-wrap: wrap;
+  width: 34px;
+  height: 34px;
   align-items: center;
-  gap: $space-2;
-  font-size: $text-caption;
+  justify-content: center;
+  border-radius: $radius-md;
+  background: $cyan-wash;
+  color: $cyan-deep;
+  font-size: $admin-text-sm;
+}
+
+.routes {
+  @include stack($space-3);
+  padding: $space-4 $space-5;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  background: $surface-card;
+  box-shadow: $shadow-xs;
 }
 
 .routes-title {
-  color: $text-muted;
+  @include row($space-2);
+  color: $text-strong;
+  font-size: $admin-text-sm;
   font-weight: $weight-semibold;
+
+  i {
+    color: $magenta;
+  }
+}
+
+.route-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
 }
 
 .route-chip {
-  @include row($space-1);
-  padding: 2px $space-2;
-  border-radius: $radius-pill;
-  background: $surface-sunken;
+  @include admin-badge($text-strong, $surface-sunken);
+  font-weight: $weight-medium;
 
   strong {
+    padding-left: 2px;
+    color: $cyan-deep;
     font-family: $font-mono;
+    font-weight: $weight-semibold;
   }
 }
 
@@ -381,7 +451,7 @@ onBeforeUnmount(() => clearInterval(timer))
   border: 1px solid $border-subtle;
   border-radius: $radius-lg;
   background: $surface-card;
-  box-shadow: $shadow-sm;
+  box-shadow: $shadow-xs;
 }
 
 .list-pane {
@@ -412,6 +482,7 @@ onBeforeUnmount(() => clearInterval(timer))
   @include stack($space-3);
   padding: $space-4;
   border-bottom: 1px solid $border-subtle;
+  background: $surface-card;
 }
 
 .search {
@@ -420,49 +491,52 @@ onBeforeUnmount(() => clearInterval(timer))
 
 .filters {
   display: flex;
-  gap: $space-1;
+  gap: $space-2;
   overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
 
   button {
+    @include admin-pill;
     flex: none;
-    padding: $space-1 $space-3;
-    border: 1px solid $border-subtle;
-    border-radius: $radius-pill;
-    background: $surface-card;
-    color: $text-body;
-    font-size: $text-eyebrow;
-    cursor: pointer;
-    @include focus-ring;
-
-    &.active {
-      border-color: $cyan;
-      background: $brand-100;
-      color: $text-strong;
-      font-weight: $weight-semibold;
-    }
+    min-height: 34px;
+    padding: 4px 12px;
   }
 }
 
 @include from($bp-md) {
+  .stats {
+    flex-wrap: wrap;
+    overflow: visible;
+    margin-inline: 0;
+    padding: 0;
+
+    article {
+      flex: 1 1 150px;
+    }
+  }
+
   .workspace,
   .workspace.has-selection {
-    min-height: 640px;
+    height: min(820px, calc(100vh - 120px));
+    min-height: 620px;
 
     .list-pane {
       display: flex;
-      width: 360px;
+      width: 380px;
       flex: none;
       border-right: 1px solid $border-subtle;
     }
 
     .detail-pane {
-      display: block;
+      display: flex;
       flex: 1;
+      flex-direction: column;
     }
   }
 
   .list-pane :deep(.conversation-list) {
-    max-height: 720px;
+    flex: 1;
     overflow-y: auto;
   }
 }

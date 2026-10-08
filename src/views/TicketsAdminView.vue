@@ -60,12 +60,21 @@ const visible = computed(() => {
   })
 })
 
-// El más antiguo arriba: se atiende en el orden en que llegaron.
+// Lo más reciente arriba (pedido del cliente).
 const byStatus = computed(() => {
   const result: Record<string, ServiceTicket[]> = {}
   for (const ticket of visible.value) (result[ticket.status] ??= []).push(ticket)
-  for (const list of Object.values(result)) list.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  for (const list of Object.values(result)) list.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   return result
+})
+
+const CLOSED: TicketStatus[] = ['entregado', 'cancelado']
+const openTickets = computed(() => tickets.value.filter((ticket) => !CLOSED.includes(ticket.status)))
+const openCount = computed(() => openTickets.value.length)
+const unassigned = computed(() => openTickets.value.filter((ticket) => !ticket.assignedTo).length)
+const todayCount = computed(() => {
+  const today = new Date().toDateString()
+  return tickets.value.filter((ticket) => new Date(ticket.createdAt).toDateString() === today).length
 })
 
 const closedCount = computed(() => tickets.value.filter((ticket) => ticket.status === 'cancelado' || ticket.status === 'entregado').length)
@@ -204,8 +213,8 @@ onBeforeUnmount(() => clearInterval(timer))
     <header class="page-header" data-admin-reveal>
       <div>
         <p class="eyebrow"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> Servicio técnico</p>
-        <h1>Tickets y<br /><em>suministros.</em></h1>
-        <p>Las solicitudes que registra Mila por WhatsApp. Un asesor toma el chat y las sigue desde aquí.</p>
+        <h1>Tickets y <em>suministros</em></h1>
+        <p>Lo que registra Mila por WhatsApp. Arrastra cada tarjeta a la columna de su estado.</p>
       </div>
       <button class="refresh" type="button" :disabled="loading" @click="load()">
         <i :class="loading ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-rotate'" aria-hidden="true"></i> Actualizar
@@ -215,6 +224,13 @@ onBeforeUnmount(() => clearInterval(timer))
     <Transition name="fade">
       <p v-if="notice" class="notice ok" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ notice }}</p>
     </Transition>
+
+    <section class="kpis" data-admin-reveal aria-label="Resumen de tickets">
+      <div class="kpi warn"><strong>{{ byStatus.atencion?.length ?? 0 }}</strong><span>Necesitan atención</span></div>
+      <div class="kpi"><strong>{{ openCount }}</strong><span>Abiertos</span></div>
+      <div class="kpi"><strong>{{ unassigned }}</strong><span>Sin asignar</span></div>
+      <div class="kpi"><strong>{{ todayCount }}</strong><span>Llegaron hoy</span></div>
+    </section>
 
     <section class="filters" data-admin-reveal aria-label="Filtrar tickets">
       <label class="search">
@@ -289,12 +305,6 @@ onBeforeUnmount(() => clearInterval(timer))
       @close="selected = null"
     >
       <div v-if="selected" class="detail">
-        <div class="facts">
-          <div><span>Cliente</span><strong>{{ selected.customerName || '—' }}</strong></div>
-          <div><span>WhatsApp</span><strong>{{ selected.customerPhone }}</strong></div>
-          <div v-if="selected.type === 'servicio_tecnico'"><span>Equipo</span><strong>{{ DEVICE_LABEL[selected.device] ?? selected.device }}</strong></div>
-          <div><span>Precio sugerido</span><strong>{{ selected.priceMin != null ? `$${selected.priceMin} – $${selected.priceMax}` : 'Por cotizar' }}</strong><small v-if="selected.category">{{ selected.category }} · {{ selected.priceSource }}</small></div>
-        </div>
         <section class="summary" :class="{ attention: selected.summary?.needsAttention }" aria-live="polite">
           <header>
             <p class="eyebrow"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Resumen</p>
@@ -311,6 +321,12 @@ onBeforeUnmount(() => clearInterval(timer))
           </template>
           <p v-else class="muted">{{ summarizing ? 'Leyendo la conversación…' : 'Aún no hay resumen.' }}</p>
         </section>
+        <div class="facts">
+          <div><span>Cliente</span><strong>{{ selected.customerName || '—' }}</strong></div>
+          <div><span>WhatsApp</span><strong>{{ selected.customerPhone }}</strong></div>
+          <div v-if="selected.type === 'servicio_tecnico'"><span>Equipo</span><strong>{{ DEVICE_LABEL[selected.device] ?? selected.device }}</strong></div>
+          <div><span>Precio sugerido</span><strong>{{ selected.priceMin != null ? `$${selected.priceMin} – $${selected.priceMax}` : 'Por cotizar' }}</strong><small v-if="selected.category">{{ selected.category }} · {{ selected.priceSource }}</small></div>
+        </div>
         <p class="issue-box"><strong>Lo que contó:</strong> {{ selected.issue }}</p>
 
         <div class="links">
@@ -356,8 +372,9 @@ onBeforeUnmount(() => clearInterval(timer))
         <section v-if="selected.notes.length || selected.statusHistory.length" class="block">
           <p class="eyebrow">Historial</p>
           <ul class="history">
-            <li v-for="(entry, index) in [...selected.notes.map((item) => ({ at: item.at, text: `📝 ${item.text}`, by: item.by })), ...selected.statusHistory.map((item) => ({ at: item.at, text: `➡️ ${ticketStatusMeta(item.status).label}`, by: item.by }))].sort((a, b) => a.at.localeCompare(b.at))" :key="index">
-              <time>{{ formatDate(entry.at) }}</time> {{ entry.text }}<template v-if="entry.by"> · {{ entry.by }}</template>
+            <li v-for="(entry, index) in [...selected.notes.map((item) => ({ at: item.at, text: `📝 ${item.text}`, by: item.by })), ...selected.statusHistory.map((item) => ({ at: item.at, text: `➡️ ${ticketStatusMeta(item.status).label}`, by: item.by }))].sort((a, b) => b.at.localeCompare(a.at))" :key="index">
+              <span>{{ entry.text }}<small v-if="entry.by"> · {{ entry.by }}</small></span>
+              <time>{{ formatDate(entry.at) }}</time>
             </li>
           </ul>
         </section>
@@ -391,35 +408,40 @@ onBeforeUnmount(() => clearInterval(timer))
   @include admin-notice;
 }
 
-.filters {
-  @include stack($space-3);
-}
-
-.types {
+.kpis {
   display: flex;
   flex-wrap: wrap;
-  gap: $space-2;
+  gap: $space-3;
+}
 
-  button {
-    @include row($space-1);
-    padding: $space-1 $space-3;
-    border: 1px solid $border-subtle;
-    border-radius: $radius-pill;
-    background: $surface-card;
+.kpi {
+  @include stack(2px);
+  flex: 1 1 140px;
+  padding: $space-4 $space-5;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  background: $surface-card;
+
+  strong {
+    color: $text-strong;
+    font-family: $font-display;
+    font-size: 1.75rem;
+    font-weight: $weight-black;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  span {
     color: $text-body;
-    font-size: $text-eyebrow;
-    cursor: pointer;
-    @include focus-ring;
+    font-size: $admin-text-sm;
+  }
+
+  &.warn {
+    border-color: rgba($yellow-deep, 0.35);
+    background: $yellow-wash;
 
     strong {
-      font-family: $font-mono;
-    }
-
-    &.active {
-      border-color: $cyan;
-      background: $brand-100;
-      color: $text-strong;
-      font-weight: $weight-semibold;
+      color: $yellow-deep;
     }
   }
 }
@@ -433,91 +455,136 @@ onBeforeUnmount(() => clearInterval(timer))
 
 .search {
   @include admin-search;
-  flex: 1 1 260px;
+  flex: 1 1 280px;
+  max-width: 460px;
+}
+
+.types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+
+  button {
+    @include admin-pill;
+  }
 }
 
 .state {
   padding: $space-10;
   color: $text-muted;
+  font-size: $admin-text-md;
   text-align: center;
 }
 
 // Tablero: columnas de izquierda a derecha; en el celular se desliza de lado.
 .board {
   display: flex;
-  gap: $space-3;
+  align-items: flex-start;
+  gap: $space-4;
   overflow-x: auto;
-  padding-bottom: $space-3;
-  scroll-snap-type: x mandatory;
+  padding: 2px 2px $space-4;
+  scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 }
 
 .column {
-  @include stack($space-2);
-  flex: 0 0 min(84vw, 290px);
+  @include stack($space-3);
+  flex: 0 0 min(86vw, 320px);
+  max-height: calc(100vh - 140px);
   padding: $space-3;
-  border: 1px solid $border-subtle;
+  border: 1px solid transparent;
   border-radius: $radius-lg;
   background: $surface-sunken;
   scroll-snap-align: start;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color $duration-base $ease-out, background-color $duration-base $ease-out;
 
   &.over {
     border-color: $cyan;
-    background: $brand-100;
+    background: $cyan-wash;
   }
 
   &.atencion {
-    border-color: $warning-500;
-    background: $warning-100;
+    border-color: rgba($yellow-deep, 0.3);
+    background: $yellow-wash;
   }
 }
 
 .column-head {
   @include row($space-2);
   justify-content: space-between;
-  font-size: $text-caption;
-  font-weight: $weight-semibold;
+  padding: $space-1 $space-2 0;
   color: $text-strong;
+  font-size: $admin-text-md;
+  font-weight: $weight-bold;
+
+  span {
+    @include row($space-2);
+  }
+
+  i {
+    color: $text-muted;
+  }
 
   strong {
-    @include mono-data($text-muted, $text-eyebrow);
+    min-width: 28px;
+    padding: 2px 8px;
+    border-radius: $radius-pill;
+    background: $surface-card;
+    color: $text-body;
+    font-family: $font-mono;
+    font-size: $admin-text-xs;
+    text-align: center;
   }
 }
 
+.atencion .column-head i {
+  color: $yellow-deep;
+}
+
 .column-hint {
-  color: $warning-500;
-  font-size: $text-eyebrow;
+  padding: 0 $space-2;
+  color: $yellow-deep;
+  font-size: $admin-text-xs;
 }
 
 .cards {
   @include stack($space-2);
-  min-height: 80px;
+  @include scroll-area;
+  min-height: 96px;
+  padding: 2px;
 }
 
 .empty-col {
-  padding: $space-4 0;
+  padding: $space-6 0;
+  border: 1px dashed $border-strong;
+  border-radius: $radius-md;
   color: $text-muted;
-  font-size: $text-eyebrow;
+  font-size: $admin-text-sm;
   text-align: center;
 }
 
 .card {
-  @include stack(6px);
+  @include stack($space-2);
+  flex: none;
   width: 100%;
-  padding: $space-3;
+  padding: $space-4;
   border: 1px solid $border-subtle;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
   background: $surface-card;
-  box-shadow: $shadow-sm;
+  box-shadow: $shadow-xs;
   color: inherit;
   text-align: left;
   cursor: grab;
   @include focus-ring;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color $duration-base $ease-out, box-shadow $duration-base $ease-out, transform $duration-base $ease-out;
 
-  &:hover {
-    border-color: $cyan;
+  @media (hover: hover) {
+    &:hover {
+      border-color: $cyan-soft;
+      box-shadow: $shadow-md;
+      transform: translateY(-1px);
+    }
   }
 
   &:active {
@@ -525,7 +592,7 @@ onBeforeUnmount(() => clearInterval(timer))
   }
 
   &.dragging {
-    opacity: 0.5;
+    opacity: 0.45;
   }
 }
 
@@ -538,56 +605,77 @@ onBeforeUnmount(() => clearInterval(timer))
   gap: $space-2;
 }
 
-.number,
-.card-top time,
-.price {
-  @include mono-data($text-muted, $text-eyebrow);
+.number {
+  @include mono-data($text-body, $admin-text-xs);
+  font-weight: $weight-medium;
+}
+
+.card-top time {
+  color: $text-muted;
+  font-size: $admin-text-xs;
 }
 
 .customer {
-  font-size: $text-body-sm;
   color: $text-strong;
+  font-size: $admin-text-base;
+  font-weight: $weight-bold;
+  line-height: 1.3;
 }
 
 .want {
-  color: $text-body;
-  font-size: $text-caption;
-  overflow-wrap: anywhere;
   display: -webkit-box;
+  overflow: hidden;
+  color: $text-body;
+  font-size: $admin-text-md;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .reason {
-  color: $warning-500;
-  font-size: $text-eyebrow;
+  @include row(6px, flex-start);
+  padding: 6px $space-2;
+  border-radius: $radius-sm;
+  background: $yellow-wash;
+  color: $yellow-deep;
+  font-size: $admin-text-xs;
+  font-weight: $weight-semibold;
+}
+
+.card-foot {
+  padding-top: $space-2;
+  border-top: 1px solid $border-subtle;
 }
 
 .assignee {
-  @include row(4px);
-  font-size: $text-eyebrow;
-  font-weight: $weight-semibold;
-  color: $cyan-dark;
+  @include admin-badge($cyan-dark, $cyan-wash);
 
   &.empty {
+    background: $surface-sunken;
     color: $text-muted;
-    font-weight: normal;
+    font-weight: $weight-medium;
   }
+}
+
+.price {
+  @include mono-data($text-strong, $admin-text-xs);
+  font-weight: $weight-medium;
 }
 
 .summary {
   @include stack($space-2);
-  padding: $space-3 $space-4;
+  padding: $space-4;
   border: 1px solid $border-subtle;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
   background: $surface-card;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 
   &.attention {
-    border-color: $warning-500;
-    background: $warning-100;
+    border-color: rgba($yellow-deep, 0.35);
+    background: $yellow-wash;
   }
 
   header {
@@ -602,7 +690,7 @@ onBeforeUnmount(() => clearInterval(timer))
   }
 
   .chip {
-    @include badge;
+    @include admin-badge;
   }
 
   .muted {
@@ -612,8 +700,8 @@ onBeforeUnmount(() => clearInterval(timer))
 
 .regen {
   @include button-secondary;
-  padding: $space-1 $space-3;
-  font-size: $text-eyebrow;
+  padding: 6px 12px;
+  font-size: $admin-text-xs;
 }
 
 .detail {
@@ -633,12 +721,12 @@ onBeforeUnmount(() => clearInterval(timer))
     background: $surface-sunken;
 
     span {
-      @include field-label;
+      @include admin-label;
     }
 
     small {
       color: $text-muted;
-      font-size: $text-eyebrow;
+      font-size: $admin-text-xs;
     }
   }
 }
@@ -647,7 +735,7 @@ onBeforeUnmount(() => clearInterval(timer))
   padding: $space-3 $space-4;
   border-left: 3px solid $cyan;
   background: $brand-100;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
   overflow-wrap: anywhere;
 }
 
@@ -677,11 +765,12 @@ onBeforeUnmount(() => clearInterval(timer))
   button {
     @include button-secondary;
     padding: $space-2 $space-3;
-    font-size: $text-caption;
+    font-size: $admin-text-sm;
 
     &.active {
-      border-color: $cyan;
-      background: $brand-100;
+      border-color: $key-900;
+      background: $key-900;
+      color: $text-on-dark;
       opacity: 1;
     }
   }
@@ -712,17 +801,41 @@ onBeforeUnmount(() => clearInterval(timer))
 
 .primary {
   @include button-primary;
+  margin-left: auto;
 }
 
 .history {
-  @include stack(4px);
-  font-size: $text-caption;
+  @include stack(0);
+
+  li {
+    @include stack(2px);
+    position: relative;
+    padding: $space-2 0 $space-2 $space-5;
+    border-left: 2px solid $border-subtle;
+    font-size: $admin-text-md;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: -6px;
+      width: 10px;
+      height: 10px;
+      border: 2px solid $surface-card;
+      border-radius: $radius-pill;
+      background: $cyan;
+    }
+  }
+
+  small {
+    color: $text-muted;
+    font-size: $admin-text-sm;
+  }
 
   time {
-    @include mono-data($text-muted, $text-eyebrow);
+    @include mono-data($text-muted, $admin-text-xs);
   }
 }
-
 .ghost-btn {
   @include button-secondary;
 }

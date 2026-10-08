@@ -149,31 +149,43 @@ onMounted(load)
   <div class="catalog-admin">
     <header class="page-header" data-admin-reveal>
       <div>
-        <p class="eyebrow"><i class="fa-solid fa-sparkles" aria-hidden="true"></i> Gestión de catálogo</p>
-        <h1>Construye tu<br /><em>vitrina digital.</em></h1>
-        <p>Crea, edita, publica o retira productos y servicios. Todo lo que guardes aparece de inmediato en el sitio.</p>
+        <p class="eyebrow"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i> Gestión de catálogo</p>
+        <h1>Productos y <em>servicios</em></h1>
+        <p>Crea, edita, publica o retira publicaciones. Lo que guardes aparece de inmediato en el sitio.</p>
       </div>
 
-      <div class="header-side">
-        <div class="actions">
-          <button class="primary" type="button" :disabled="loading" @click="openEditor('create')">
-            <i class="fa-solid fa-plus" aria-hidden="true"></i> Nuevo producto
-          </button>
-          <button class="secondary" type="button" :disabled="loading" @click="categoriesOpen = true">
-            <i class="fa-solid fa-shapes" aria-hidden="true"></i> Categorías
-          </button>
-          <button class="secondary" type="button" :disabled="importing || loading" @click="loadOffers">
-            <i :class="importing ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-file-arrow-up'" aria-hidden="true"></i>
-            {{ importing ? 'Sincronizando…' : 'Cargar ofertas base' }}
-          </button>
-        </div>
-        <div class="header-metric">
-          <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
-          <strong>{{ items.length }}</strong>
-          <span>publicaciones · {{ items.filter((item) => item.active).length }} visibles</span>
-        </div>
+      <div class="actions">
+        <button class="secondary" type="button" :disabled="importing || loading" @click="loadOffers">
+          <i :class="importing ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-file-arrow-up'" aria-hidden="true"></i>
+          {{ importing ? 'Sincronizando…' : 'Cargar ofertas base' }}
+        </button>
+        <button class="secondary" type="button" :disabled="loading" @click="categoriesOpen = true">
+          <i class="fa-solid fa-shapes" aria-hidden="true"></i> Categorías
+        </button>
+        <button class="primary" type="button" :disabled="loading" @click="openEditor('create')">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i> Nuevo producto
+        </button>
       </div>
     </header>
+
+    <section class="kpis" data-admin-reveal aria-label="Resumen del catálogo">
+      <div class="kpi">
+        <span class="kpi-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span>
+        <strong>{{ items.length }}</strong><span>Publicaciones</span>
+      </div>
+      <div class="kpi ok">
+        <span class="kpi-icon"><i class="fa-solid fa-eye" aria-hidden="true"></i></span>
+        <strong>{{ items.filter((item) => item.active).length }}</strong><span>Visibles en la tienda</span>
+      </div>
+      <div class="kpi draft">
+        <span class="kpi-icon"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i></span>
+        <strong>{{ items.filter((item) => !item.active).length }}</strong><span>Borradores</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-icon"><i class="fa-solid fa-shapes" aria-hidden="true"></i></span>
+        <strong>{{ categories.length }}</strong><span>Categorías</span>
+      </div>
+    </section>
 
     <p v-if="notice" class="notice ok" role="status">
       <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
@@ -227,15 +239,14 @@ onMounted(load)
   @include admin-eyebrow;
 }
 
-.header-side {
-  @include stack($space-3);
-  align-items: flex-start;
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: $space-2;
+
+  button {
+    flex: 1 1 auto;
+  }
 }
 
 .primary {
@@ -246,10 +257,64 @@ onMounted(load)
   @include button-secondary;
 }
 
-.header-metric {
-  @include admin-stat-card;
-  width: auto;
-  min-width: 150px;
+// Movil: franja deslizable; escritorio: una fila.
+.kpis {
+  display: flex;
+  gap: $space-3;
+  overflow-x: auto;
+  margin-inline: calc(-1 * #{$space-4});
+  padding: 2px $space-4 $space-1;
+  scroll-padding-inline: $space-4;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.kpi {
+  @include stack(2px);
+  flex: 0 0 156px;
+  padding: $space-4 $space-5;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  background: $surface-card;
+  box-shadow: $shadow-xs;
+  scroll-snap-align: start;
+
+  strong {
+    margin-top: $space-2;
+    color: $text-strong;
+    font-family: $font-display;
+    font-size: 1.75rem;
+    font-weight: $weight-black;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  > span:last-child {
+    color: $text-body;
+    font-size: $admin-text-sm;
+  }
+
+  &.ok .kpi-icon {
+    background: $success-100;
+    color: $success-500;
+  }
+
+  &.draft .kpi-icon {
+    background: $yellow-wash;
+    color: $yellow-deep;
+  }
+}
+
+.kpi-icon {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-md;
+  background: $cyan-wash;
+  color: $cyan-deep;
+  font-size: $admin-text-sm;
 }
 
 .notice {
@@ -275,12 +340,23 @@ onMounted(load)
 }
 
 @include from($bp-md) {
-  .header-side {
-    align-items: flex-end;
+  .actions {
+    flex-wrap: nowrap;
+
+    button {
+      flex: none;
+    }
   }
 
-  .actions {
-    justify-content: flex-end;
+  .kpis {
+    flex-wrap: wrap;
+    overflow: visible;
+    margin-inline: 0;
+    padding: 0;
+  }
+
+  .kpi {
+    flex: 1 1 150px;
   }
 }
 </style>

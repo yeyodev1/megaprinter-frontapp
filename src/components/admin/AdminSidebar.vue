@@ -126,8 +126,8 @@ const logout = async () => {
   @include focus-ring($brand-300);
 
   small {
-    @include eyebrow($brand-300);
-    font-size: 0.625rem;
+    @include admin-eyebrow($brand-300);
+    font-size: $admin-text-xs;
   }
 }
 
@@ -143,9 +143,9 @@ const logout = async () => {
 }
 
 .section-label {
-  @include eyebrow($key-300);
+  @include admin-eyebrow($key-300);
   padding: 0 $space-3 $space-2;
-  font-size: 0.625rem;
+  font-size: $admin-text-xs;
 }
 
 .nav-link {
@@ -184,7 +184,7 @@ const logout = async () => {
   border-radius: $radius-sm;
   background: rgba(255, 255, 255, 0.06);
   color: $brand-300;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
   transition: background $duration-base $ease-out, color $duration-base $ease-out;
 }
 
@@ -194,14 +194,14 @@ const logout = async () => {
   flex-direction: column;
 
   strong {
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
     font-weight: $weight-semibold;
   }
 
   small {
     @include truncate;
     color: $key-300;
-    font-size: $text-eyebrow;
+    font-size: $admin-text-xs;
   }
 }
 
@@ -210,7 +210,7 @@ const logout = async () => {
   margin-bottom: $space-3;
   padding: $space-2 $space-3;
   color: $key-300;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
   @include focus-ring($brand-300);
 
   &:hover {
@@ -256,7 +256,7 @@ const logout = async () => {
   border-radius: $radius-pill;
   background: $cyan;
   color: $key-900;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
   font-weight: $weight-black;
 }
 
@@ -268,13 +268,13 @@ const logout = async () => {
 
   strong {
     @include truncate;
-    font-size: $text-caption;
+    font-size: $admin-text-sm;
   }
 
   small {
     @include truncate;
     color: $key-300;
-    font-size: 0.6875rem;
+    font-size: $admin-text-xs;
   }
 }
 

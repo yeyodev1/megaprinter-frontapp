@@ -182,7 +182,7 @@ const requestClose = async () => {
 }
 
 .preview-label {
-  @include eyebrow;
+  @include admin-eyebrow;
 }
 
 .preview-card {
@@ -224,7 +224,7 @@ const requestClose = async () => {
   }
 
   .tag {
-    @include badge($brand-700, rgba(255, 255, 255, 0.92));
+    @include admin-badge($brand-700, rgba(255, 255, 255, 0.92));
     position: absolute;
     top: $space-3;
     left: $space-3;
@@ -232,7 +232,7 @@ const requestClose = async () => {
   }
 
   .discount {
-    @include badge($white, $accent-500);
+    @include admin-badge($white, $accent-500);
     position: absolute;
     top: $space-3;
     right: $space-3;
@@ -251,7 +251,7 @@ const requestClose = async () => {
 }
 
 .availability {
-  @include eyebrow($ok);
+  @include admin-eyebrow($ok);
 
   .dot {
     width: 6px;
@@ -270,7 +270,7 @@ const requestClose = async () => {
 }
 
 .description {
-  @include body-text($text-body, $text-caption);
+  @include body-text($text-body, $admin-text-sm);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -289,7 +289,7 @@ const requestClose = async () => {
     gap: $space-3;
     padding-block: $space-1;
     border-bottom: 1px solid $border-subtle;
-    @include mono-data($text-muted, $text-eyebrow);
+    @include mono-data($text-muted, $admin-text-xs);
   }
 
   strong {
@@ -304,7 +304,7 @@ const requestClose = async () => {
   padding-top: $space-2;
 
   small {
-    @include mono-data($text-muted, $text-eyebrow);
+    @include mono-data($text-muted, $admin-text-xs);
     text-decoration: line-through;
   }
 

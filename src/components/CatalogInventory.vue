@@ -41,6 +41,9 @@ const kindOptions: SelectOption[] = [
 
 // Con más de cincuenta publicaciones la lista plana dejó de ser manejable:
 // se filtra por texto, categoría, estado y tipo.
+const createdAt = (item: CatalogItem) => (item as CatalogItem & { createdAt?: string }).createdAt ?? ''
+
+// Lo más reciente arriba.
 const filteredItems = computed(() => {
   const query = search.value.trim().toLocaleLowerCase()
   return props.items.filter((item) => {
@@ -51,7 +54,7 @@ const filteredItems = computed(() => {
     if (!query) return true
     const haystack = `${item.name} ${item.description} ${item.category.name}`.toLocaleLowerCase()
     return query.split(/\s+/).every((term) => haystack.includes(term))
-  })
+  }).sort((a, b) => createdAt(b).localeCompare(createdAt(a)))
 })
 
 const hasFilters = computed(
@@ -70,8 +73,8 @@ const resetFilters = () => {
   <section class="inventory" data-admin-reveal>
     <div class="inventory-header">
       <div>
-        <p class="eyebrow"><i class="fa-solid fa-table-cells-large" aria-hidden="true"></i> Inventario</p>
-        <h2>Todo lo publicado</h2>
+        <h2>Inventario</h2>
+        <p>Lo más reciente primero</p>
       </div>
       <span class="count">{{ filteredItems.length }} de {{ items.length }}</span>
     </div>
@@ -83,13 +86,13 @@ const resetFilters = () => {
         <input v-model="search" type="search" placeholder="Buscar por nombre, descripción o categoría" />
       </label>
       <div class="filter">
-        <AppSelect v-model="category" :options="categoryOptions" size="sm" aria-label="Filtrar por categoría" />
+        <AppSelect v-model="category" :options="categoryOptions" aria-label="Filtrar por categoría" />
       </div>
       <div class="filter">
-        <AppSelect v-model="state" :options="stateOptions" size="sm" aria-label="Filtrar por estado" />
+        <AppSelect v-model="state" :options="stateOptions" aria-label="Filtrar por estado" />
       </div>
       <div class="filter">
-        <AppSelect v-model="kind" :options="kindOptions" size="sm" aria-label="Filtrar por tipo" />
+        <AppSelect v-model="kind" :options="kindOptions" aria-label="Filtrar por tipo" />
       </div>
       <button v-if="hasFilters" type="button" class="reset" @click="resetFilters">
         <i class="fa-solid fa-xmark" aria-hidden="true"></i> Limpiar
@@ -127,34 +130,39 @@ const resetFilters = () => {
 
 <style scoped lang="scss">
 .inventory {
-  @include admin-card;
+  @include admin-card(0);
+  overflow: hidden;
 }
 
 .inventory-header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: $space-3;
-  margin-bottom: $space-4;
+  padding: $space-5 $space-5 $space-3;
 
   h2 {
-    margin-top: $space-2;
-    font-size: $text-heading;
+    color: $text-strong;
+    font-size: $admin-text-lg;
+    font-weight: $weight-bold;
+  }
+
+  p {
+    margin-top: 2px;
+    color: $text-muted;
+    font-size: $admin-text-sm;
   }
 }
 
-.eyebrow {
-  @include eyebrow;
-}
-
 .count {
-  @include mono-data($text-muted, $text-eyebrow);
-  white-space: nowrap;
+  @include admin-badge($text-body, $surface-sunken);
+  font-family: $font-mono;
 }
 
 .toolbar {
   @include admin-toolbar;
-  margin-bottom: $space-2;
+  padding: 0 $space-5 $space-4;
+  border-bottom: 1px solid $border-subtle;
 }
 
 .search {
@@ -170,7 +178,7 @@ const resetFilters = () => {
 .reset {
   @include button-ghost($brand-600);
   padding: $space-2 $space-3;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
 }
 
 .item-list {
@@ -181,6 +189,14 @@ const resetFilters = () => {
 .empty {
   @include empty-state;
 
+  h3 {
+    font-size: $admin-text-lg;
+  }
+
+  p {
+    font-size: $admin-text-md;
+  }
+
   button {
     @include button-secondary;
   }
@@ -188,11 +204,11 @@ const resetFilters = () => {
 
 @include from($bp-md) {
   .search {
-    flex-basis: 280px;
+    flex-basis: 300px;
   }
 
   .filter {
-    flex: 0 1 200px;
+    flex: 0 1 210px;
   }
 }
 </style>

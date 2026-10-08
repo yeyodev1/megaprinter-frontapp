@@ -178,7 +178,7 @@ onBeforeUnmount(() => previouslyFocused?.focus?.())
 }
 
 .modal-eyebrow {
-  @include eyebrow;
+  @include admin-eyebrow;
   margin-bottom: $space-1;
 }
 

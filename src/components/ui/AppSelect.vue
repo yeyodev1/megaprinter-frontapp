@@ -234,14 +234,14 @@ onBeforeUnmount(() => {
 
   .size-sm & {
     padding: $space-2 $space-3;
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
   }
 }
 
 .lead-icon {
   flex: none;
   color: $brand-500;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
 }
 
 .value {
@@ -257,7 +257,7 @@ onBeforeUnmount(() => {
 
   i {
     color: $brand-600;
-    font-size: $text-caption;
+    font-size: $admin-text-sm;
   }
 }
 
@@ -297,13 +297,13 @@ onBeforeUnmount(() => {
     padding: $space-2 $space-3;
     border-radius: $radius-sm;
     color: $text-strong;
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
     cursor: pointer;
 
     > i:first-child {
       width: 16px;
       color: $brand-600;
-      font-size: $text-caption;
+      font-size: $admin-text-sm;
       text-align: center;
     }
 
@@ -319,13 +319,13 @@ onBeforeUnmount(() => {
 
       small {
         color: $text-muted;
-        font-size: $text-eyebrow;
+        font-size: $admin-text-xs;
       }
     }
 
     .check {
       color: $cyan-deep;
-      font-size: $text-eyebrow;
+      font-size: $admin-text-xs;
     }
 
     &.highlighted {

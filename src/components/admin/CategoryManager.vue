@@ -230,7 +230,7 @@ const remove = async (category: Category & { count: number }) => {
   border-radius: $radius-sm;
   background: $brand-100;
   color: $brand-600;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
 }
 
 .row-copy {
@@ -239,12 +239,13 @@ const remove = async (category: Category & { count: number }) => {
   flex: 1;
 
   strong {
-    font-size: $text-body-sm;
+    color: $text-strong;
+    font-size: $admin-text-base;
   }
 
   small {
     @include truncate;
-    @include mono-data($text-muted, $text-eyebrow);
+    @include mono-data($text-muted, $admin-text-xs);
   }
 }
 
@@ -264,14 +265,14 @@ const remove = async (category: Category & { count: number }) => {
     min-width: 0;
     flex: 1;
     padding: $space-2 $space-3;
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
   }
 }
 
 .icon-button {
   display: flex;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -309,7 +310,7 @@ const remove = async (category: Category & { count: number }) => {
 .empty {
   padding-block: $space-6;
   color: $text-muted;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
   text-align: center;
 }
 
@@ -321,7 +322,7 @@ const remove = async (category: Category & { count: number }) => {
   border-radius: $radius-sm;
   background: $brand-100;
   color: $brand-700;
-  font-size: $text-eyebrow;
+  font-size: $admin-text-sm;
   line-height: $leading-body;
 }
 

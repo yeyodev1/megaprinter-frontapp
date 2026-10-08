@@ -34,6 +34,16 @@ const transferMeta = computed(() =>
   props.order.source === 'transfer' && props.order.transfer?.status ? TRANSFER_STATUS[props.order.transfer.status] : null,
 )
 
+// "hace 2 h" se lee más rápido que la fecha completa; la fecha queda en el title.
+const ago = computed(() => {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(props.order.createdAt).getTime()) / 60000))
+  if (minutes < 60) return `hace ${minutes} min`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `hace ${hours} h`
+  const days = Math.round(hours / 24)
+  return days < 30 ? `hace ${days} d` : new Date(props.order.createdAt).toLocaleDateString('es-EC')
+})
+
 const onStatusChange = (value: string | number | null) => {
   const status = value as OrderStatus
   if (status === props.order.status) return
@@ -43,8 +53,8 @@ const onStatusChange = (value: string | number | null) => {
 </script>
 
 <template>
-  <article class="order-card">
-    <div class="source" :class="order.source">
+  <article class="order-card" :class="{ attention: order.transfer?.status === 'in_review' && order.source === 'transfer' }">
+    <div class="source" :class="order.source" :title="sourceLabel(order.source)">
       <i :class="sourceIcon(order.source)" aria-hidden="true"></i>
     </div>
 
@@ -52,8 +62,10 @@ const onStatusChange = (value: string | number | null) => {
       <div class="top">
         <div class="identity">
           <h2>{{ order.customerName }}</h2>
-          <span class="source-label">
-            {{ orderCode(order) }} · {{ sourceLabel(order.source) }} · {{ formatDate(order.createdAt) }}
+          <span class="meta">
+            <span class="code">{{ orderCode(order) }}</span>
+            <span>{{ sourceLabel(order.source) }}</span>
+            <time :datetime="order.createdAt" :title="formatDate(order.createdAt)">{{ ago }}</time>
           </span>
         </div>
         <div class="badges">
@@ -71,31 +83,30 @@ const onStatusChange = (value: string | number | null) => {
       >
         <i :class="transferMeta.icon" aria-hidden="true"></i>
         {{ transferMeta.label }}
-        <span v-if="order.transfer?.status === 'in_review'" class="chip-cta">Revisar</span>
+        <span v-if="order.transfer?.status === 'in_review'" class="chip-cta">Revisar <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
       </button>
+
+      <ul class="products" aria-label="Productos">
+        <li v-for="item in order.items" :key="item.name"><strong>{{ item.quantity }}×</strong> {{ item.name }}</li>
+      </ul>
 
       <div class="contact">
         <a :href="`mailto:${order.customerEmail}`">
-          <i class="fa-solid fa-envelope" aria-hidden="true"></i>{{ order.customerEmail }}
+          <i class="fa-solid fa-envelope" aria-hidden="true"></i><span>{{ order.customerEmail }}</span>
         </a>
         <a :href="phoneLink(order.customerPhone)">
-          <i class="fa-solid fa-phone" aria-hidden="true"></i>{{ order.customerPhone }}
+          <i class="fa-solid fa-phone" aria-hidden="true"></i><span>{{ order.customerPhone }}</span>
         </a>
         <span>
-          <i class="fa-solid fa-location-dot" aria-hidden="true"></i>{{ order.address || 'Sin dirección' }}
+          <i class="fa-solid fa-location-dot" aria-hidden="true"></i><span>{{ order.address || 'Sin dirección' }}</span>
         </span>
-      </div>
-
-      <div class="products">
-        <span v-for="item in order.items" :key="item.name">{{ item.quantity }}× {{ item.name }}</span>
       </div>
     </div>
 
     <aside class="side">
       <strong class="total">{{ formatMoney(order.totalAmount) }}</strong>
 
-      <label class="status-control">
-        <span>Cambiar estado</span>
+      <div class="status-control">
         <AppSelect
           v-model="selected"
           :options="statusOptions"
@@ -104,13 +115,13 @@ const onStatusChange = (value: string | number | null) => {
           aria-label="Cambiar estado del pedido"
           @change="onStatusChange"
         />
-      </label>
+      </div>
 
       <div class="actions">
         <button type="button" class="detail" @click="emit('open', order)">
           <i class="fa-solid fa-eye" aria-hidden="true"></i> Ver detalle
         </button>
-        <a :href="chatLink(order)" target="_blank" rel="noopener" class="chat">
+        <a :href="chatLink(order)" target="_blank" rel="noopener" class="chat" aria-label="Abrir chat de WhatsApp">
           <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Chat
         </a>
       </div>
@@ -120,25 +131,45 @@ const onStatusChange = (value: string | number | null) => {
 
 <style scoped lang="scss">
 .order-card {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
-  gap: $space-4;
-  padding: $space-5;
+  gap: $space-3 $space-4;
+  padding: $space-5 $space-4;
   border-bottom: 1px solid $border-subtle;
+  transition: background $duration-base $ease-out;
 
   &:last-child {
     border-bottom: 0;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background: rgba($surface-sunken, 0.45);
+    }
+  }
+
+  // Comprobante por revisar: una franja amarilla lo destaca en la lista.
+  &.attention::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    background: $yellow;
   }
 }
 
 .source {
   display: flex;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
+  font-size: 1.05rem;
 
   &.whatsapp {
     background: $accent-100;
@@ -171,16 +202,35 @@ const onStatusChange = (value: string | number | null) => {
 }
 
 .identity {
-  @include stack(2px);
+  @include stack(4px);
   min-width: 0;
 
   h2 {
-    font-size: $text-subheading;
+    color: $text-strong;
+    font-size: $admin-text-lg;
+    font-weight: $weight-bold;
+    line-height: 1.25;
   }
 }
 
-.source-label {
-  @include mono-data($text-muted, $text-eyebrow);
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px $space-2;
+  color: $text-muted;
+  font-size: $admin-text-sm;
+
+  > * + *::before {
+    content: '·';
+    margin-right: $space-2;
+    color: $border-strong;
+  }
+}
+
+.code {
+  @include mono-data($text-body, $admin-text-xs);
+  font-weight: $weight-medium;
 }
 
 .badges {
@@ -189,26 +239,28 @@ const onStatusChange = (value: string | number | null) => {
 }
 
 .bot-tag {
-  @include badge;
-  background: $surface-sunken;
-  color: $text-body;
+  @include admin-badge;
 }
 
 .transfer-chip {
   @include row($space-2);
   align-self: flex-start;
-  padding: $space-2 $space-3;
+  padding: 6px 6px 6px $space-3;
   border: 1px solid $border-subtle;
-  border-radius: $radius-sm;
+  border-radius: $radius-pill;
   background: $surface-sunken;
   color: $text-body;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
   font-weight: $weight-semibold;
   cursor: pointer;
   @include focus-ring;
 
+  &.waiting {
+    padding-right: $space-3;
+  }
+
   &.review {
-    border-color: $warning-500;
+    border-color: rgba($yellow-deep, 0.4);
     background: $warning-100;
     color: $text-strong;
 
@@ -217,33 +269,73 @@ const onStatusChange = (value: string | number | null) => {
     }
   }
 
-  &.approved > i {
-    color: $success-500;
+  &.approved {
+    padding-right: $space-3;
+
+    > i {
+      color: $success-500;
+    }
   }
 
-  &.rejected > i {
-    color: $danger-500;
+  &.rejected {
+    padding-right: $space-3;
+
+    > i {
+      color: $danger-500;
+    }
   }
 }
 
 .chip-cta {
-  padding: 2px $space-2;
-  border-radius: $radius-xs;
+  @include row(6px);
+  padding: 4px 10px;
+  border-radius: $radius-pill;
   background: $key-900;
   color: $text-on-dark;
-  font-size: $text-eyebrow;
+  font-size: $admin-text-xs;
+
+  i {
+    font-size: 0.7em;
+  }
+}
+
+.products {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+
+  li {
+    max-width: 100%;
+    padding: 5px 10px;
+    border: 1px solid $border-subtle;
+    border-radius: $radius-sm;
+    background: $surface-card;
+    color: $text-strong;
+    font-size: $admin-text-sm;
+    overflow-wrap: anywhere;
+
+    strong {
+      color: $cyan-deep;
+      font-family: $font-mono;
+      font-size: $admin-text-xs;
+    }
+  }
 }
 
 .contact {
   @include stack($space-2);
   color: $text-body;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
 
   a,
-  span {
+  > span {
     @include row($space-2);
     min-width: 0;
     @include focus-ring;
+
+    span {
+      @include truncate;
+    }
   }
 
   a:hover {
@@ -253,80 +345,71 @@ const onStatusChange = (value: string | number | null) => {
   i {
     width: 14px;
     flex: none;
-    color: $brand-500;
-  }
-}
-
-.products {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $space-2;
-
-  span {
-    padding: $space-1 $space-2;
-    border-radius: $radius-xs;
-    background: $surface-sunken;
-    color: $text-body;
-    font-size: $text-eyebrow;
+    color: $text-muted;
+    font-size: $admin-text-xs;
   }
 }
 
 .side {
   @include stack($space-3);
   width: 100%;
-  padding-top: $space-3;
-  border-top: 1px solid $border-subtle;
+  padding-top: $space-4;
+  border-top: 1px dashed $border-subtle;
 }
 
 .total {
-  @include price(1.35rem);
-}
-
-.status-control {
-  @include stack($space-1);
-
-  > span {
-    @include field-label;
-  }
+  @include price(1.4rem);
+  font-weight: $weight-bold;
 }
 
 .actions {
   display: flex;
-  flex-wrap: wrap;
   gap: $space-2;
 }
 
 .detail {
   @include button-secondary;
   flex: 1;
-  padding: $space-2 $space-3;
-  font-size: $text-caption;
+  padding: 10px $space-3;
+  font-size: $admin-text-sm;
 }
 
 .chat {
   @include button-whatsapp;
-  padding: $space-2 $space-3;
-  font-size: $text-caption;
+  padding: 10px $space-3;
+  font-size: $admin-text-sm;
 }
 
 @include from($bp-md) {
   .order-card {
     flex-wrap: nowrap;
     gap: $space-5;
-    padding: $space-6;
+    padding: $space-5 $space-6;
   }
 
   .contact {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: $space-4;
+    gap: $space-2 $space-5;
+
+    a,
+    > span {
+      max-width: 100%;
+    }
   }
 
   .side {
-    width: 220px;
+    width: 240px;
     flex: none;
+    align-items: stretch;
     padding-top: 0;
+    padding-left: $space-5;
     border-top: 0;
+    border-left: 1px solid $border-subtle;
+  }
+
+  .total {
+    text-align: right;
   }
 }
 </style>

@@ -38,11 +38,6 @@ const reviewOnly = ref(false)
 
 const STATUS_VALUES = ORDER_STATUSES.map((meta) => meta.value as string)
 
-const statusOptions = computed(() => [
-  { value: 'all', label: 'Todos los estados', icon: 'fa-solid fa-layer-group' },
-  ...ORDER_STATUSES.map((meta) => ({ value: meta.value, label: meta.label, icon: meta.icon })),
-])
-
 const sourceOptions = [
   { value: 'all', label: 'Todos los orígenes', icon: 'fa-solid fa-layer-group' },
   { value: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp' },
@@ -56,6 +51,20 @@ const SOURCE_VALUES = sourceOptions.map((option) => option.value)
 const reviewCount = computed(() => orders.value.filter(needsTransferReview).length)
 // Pagados que todavía no se preparan: el equipo tiene que moverlos.
 const toPrepareCount = computed(() => orders.value.filter((order) => order.status === 'paid').length)
+
+const PAID: string[] = ['paid', 'processing', 'shipped', 'delivered']
+const openCount = computed(() => orders.value.filter((order) => !['delivered', 'cancelled'].includes(order.status)).length)
+// Lo cobrado en el mes en curso (pedidos con pago confirmado).
+const monthSales = computed(() => {
+  const now = new Date()
+  return orders.value
+    .filter((order) => PAID.includes(order.status))
+    .filter((order) => {
+      const created = new Date(order.createdAt)
+      return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear()
+    })
+    .reduce((sum, order) => sum + order.totalAmount, 0)
+})
 
 const countByStatus = computed(() => {
   const counts: Record<string, number> = {}
@@ -83,6 +92,8 @@ const filtered = computed(() => {
       .toLocaleLowerCase()
     return query.split(/\s+/).every((term) => haystack.includes(term))
   })
+    // Lo más reciente arriba.
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 })
 
 const toggleStatus = (status: string) => {
@@ -201,8 +212,8 @@ onMounted(() => {
     <header class="page-header" data-admin-reveal>
       <div>
         <p class="eyebrow"><i class="fa-solid fa-receipt" aria-hidden="true"></i> Gestión comercial</p>
-        <h1>Pedidos y<br /><em>conversaciones.</em></h1>
-        <p>Revisa cada solicitud, cambia su estado y contacta al cliente desde un solo lugar.</p>
+        <h1>Pedidos y <em>clientes</em></h1>
+        <p>Revisa cada pedido, cambia su estado y escribe al cliente desde aquí.</p>
       </div>
       <button class="refresh" type="button" :disabled="loading" @click="load">
         <i :class="loading ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-rotate'" aria-hidden="true"></i>
@@ -219,51 +230,65 @@ onMounted(() => {
       </p>
     </Transition>
 
-    <button
-      v-if="reviewCount || reviewOnly"
-      type="button"
-      class="review-banner"
-      :class="{ active: reviewOnly }"
-      :aria-pressed="reviewOnly"
-      data-admin-reveal
-      @click="reviewOnly = !reviewOnly"
-    >
-      <i class="fa-solid fa-magnifying-glass-dollar" aria-hidden="true"></i>
-      <span>
-        <strong>{{ reviewCount }} {{ reviewCount === 1 ? 'comprobante' : 'comprobantes' }} por revisar</strong>
-        <small>{{ reviewOnly ? 'Mostrando solo transferencias por revisar · ver todos' : 'Transferencias que esperan tu aprobación' }}</small>
-      </span>
-    </button>
-
-    <button
-      v-if="toPrepareCount && statusFilter !== 'paid'"
-      type="button"
-      class="review-banner prepare"
-      data-admin-reveal
-      @click="statusFilter = 'paid'"
-    >
-      <i class="fa-solid fa-sack-dollar" aria-hidden="true"></i>
-      <span>
-        <strong>{{ toPrepareCount }} {{ toPrepareCount === 1 ? 'pedido pagado' : 'pedidos pagados' }} por preparar</strong>
-        <small>El pago ya está confirmado. Pásalos a «En preparación» y carga la guía cuando salgan.</small>
-      </span>
-    </button>
+    <section class="kpis" data-admin-reveal aria-label="Resumen de pedidos">
+      <button
+        type="button"
+        class="kpi warn"
+        :class="{ active: reviewOnly, idle: !reviewCount }"
+        :aria-pressed="reviewOnly"
+        @click="reviewOnly = !reviewOnly"
+      >
+        <span class="kpi-icon"><i class="fa-solid fa-magnifying-glass-dollar" aria-hidden="true"></i></span>
+        <span class="kpi-copy">
+          <strong>{{ reviewCount }}</strong>
+          <span>{{ reviewOnly ? 'Viendo comprobantes · quitar filtro' : 'Comprobantes por revisar' }}</span>
+        </span>
+      </button>
+      <button
+        type="button"
+        class="kpi ok"
+        :class="{ active: statusFilter === 'paid', idle: !toPrepareCount }"
+        :aria-pressed="statusFilter === 'paid'"
+        @click="toggleStatus('paid')"
+      >
+        <span class="kpi-icon"><i class="fa-solid fa-box-open" aria-hidden="true"></i></span>
+        <span class="kpi-copy">
+          <strong>{{ toPrepareCount }}</strong>
+          <span>Pagados por preparar</span>
+        </span>
+      </button>
+      <div class="kpi">
+        <span class="kpi-icon"><i class="fa-solid fa-receipt" aria-hidden="true"></i></span>
+        <span class="kpi-copy">
+          <strong>{{ openCount }}</strong>
+          <span>Pedidos abiertos</span>
+        </span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-icon"><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i></span>
+        <span class="kpi-copy">
+          <strong>{{ formatMoney(monthSales) }}</strong>
+          <span>Cobrado este mes</span>
+        </span>
+      </div>
+    </section>
 
     <section class="status-strip" data-admin-reveal aria-label="Pedidos por estado">
+      <button type="button" class="pill" :class="{ active: statusFilter === 'all' }" :aria-pressed="statusFilter === 'all'" @click="statusFilter = 'all'">
+        Todos <strong>{{ orders.length }}</strong>
+      </button>
       <button
         v-for="meta in ORDER_STATUSES"
         :key="meta.value"
         type="button"
-        class="status-chip"
+        class="pill"
         :class="[meta.value, { active: statusFilter === meta.value }]"
         :aria-pressed="statusFilter === meta.value"
         @click="toggleStatus(meta.value)"
       >
         <i :class="meta.icon" aria-hidden="true"></i>
-        <span class="chip-copy">
-          <strong>{{ countByStatus[meta.value] ?? 0 }}</strong>
-          <small>{{ meta.label }}</small>
-        </span>
+        {{ meta.label }}
+        <strong>{{ countByStatus[meta.value] ?? 0 }}</strong>
       </button>
     </section>
 
@@ -275,15 +300,12 @@ onMounted(() => {
           <input v-model="search" type="search" placeholder="Cliente, correo, teléfono, producto o N.º de pedido" />
         </label>
         <div class="filter">
-          <AppSelect v-model="statusFilter" :options="statusOptions" size="sm" aria-label="Filtrar por estado" />
-        </div>
-        <div class="filter">
           <AppSelect v-model="sourceFilter" :options="sourceOptions" size="sm" aria-label="Filtrar por origen" />
         </div>
-        <span class="count">{{ filtered.length }} de {{ orders.length }}</span>
+        <span class="count">{{ filtered.length }} de {{ orders.length }} pedidos</span>
       </div>
 
-      <p v-if="loading" class="state">Cargando pedidos…</p>
+      <p v-if="loading" class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Cargando pedidos…</p>
 
       <div v-else-if="filtered.length" class="order-list">
         <OrderCard
@@ -336,137 +358,170 @@ onMounted(() => {
   @include admin-notice;
 }
 
-.review-banner {
-  @include row($space-3);
-  width: 100%;
-  padding: $space-4 $space-5;
-  border: 1px solid $warning-500;
-  border-radius: $radius-md;
-  background: $warning-100;
-  color: $text-strong;
-  text-align: left;
-  cursor: pointer;
-  @include focus-ring;
-
-  > i {
-    color: $warning-500;
-    font-size: 1.25rem;
-  }
-
-  span {
-    @include stack(2px);
-  }
-
-  small {
-    color: $text-body;
-    font-size: $text-caption;
-  }
-
-  &.active {
-    box-shadow: 0 0 0 3px rgba($warning-500, 0.25);
-  }
-}
-
-.review-banner.prepare {
-  border-color: $success-500;
-  background: $success-100;
-
-  > i {
-    color: $success-500;
-  }
-}
-
-.status-strip {
+.kpis {
   display: flex;
   flex-wrap: wrap;
-  gap: $space-2;
+  gap: $space-3;
 }
 
-.status-chip {
+.kpi {
   @include row($space-3);
-  flex: 1 1 140px;
+  flex: 1 1 150px;
+  min-width: 0;
   padding: $space-3 $space-4;
   border: 1px solid $border-subtle;
-  border-radius: $radius-md;
+  border-radius: $radius-lg;
   background: $surface-card;
-  color: $text-body;
+  box-shadow: $shadow-xs;
+  color: $text-strong;
+  font: inherit;
   text-align: left;
+}
+
+button.kpi {
   cursor: pointer;
-  transition: border-color $duration-base $ease-out, box-shadow $duration-base $ease-out;
+  transition: border-color $duration-base $ease-out, box-shadow $duration-base $ease-out, transform $duration-base $ease-out;
   @include focus-ring;
 
-  > i {
-    display: flex;
-    width: 32px;
-    height: 32px;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    border-radius: $radius-sm;
-    background: $surface-sunken;
-    font-size: $text-caption;
-  }
-
-  &.paid > i {
-    background: $success-100;
-    color: $success-500;
-  }
-
-  &.processing > i {
-    background: $brand-100;
-    color: $brand-700;
-  }
-
-  &.shipped > i {
-    background: $brand-100;
-    color: $cyan-dark;
-  }
-
-  &.delivered > i {
-    background: $key-900;
-    color: $text-on-dark;
-  }
-
-  &.cancelled > i {
-    background: $danger-100;
-    color: $danger-500;
-  }
-
-  &.whatsapp > i {
-    background: $accent-100;
-    color: $accent-600;
-  }
-
-  &.pending > i {
-    background: $warning-100;
-    color: $warning-500;
-  }
-
-  &:hover {
-    border-color: $cyan;
-  }
-
-  &.active {
-    border-color: $cyan;
-    box-shadow: 0 0 0 3px rgba(0, 163, 224, 0.18);
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: $shadow-md;
+      transform: translateY(-1px);
+    }
   }
 }
 
-.chip-copy {
-  @include stack(0);
+// En el celular el icono se oculta: dos tarjetas por fila sin apretar el número.
+.kpi-icon {
+  display: none;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-md;
+  background: $surface-sunken;
+  color: $text-body;
+  font-size: 1.05rem;
+}
+
+.kpi-copy {
+  @include stack(2px);
   min-width: 0;
 
   strong {
-    font-size: 1.25rem;
+    font-family: $font-display;
+    font-size: 1.4rem;
     font-weight: $weight-black;
     line-height: 1.1;
     letter-spacing: $tracking-display;
-    color: $text-strong;
+    font-variant-numeric: tabular-nums;
   }
 
-  small {
-    @include truncate;
-    font-size: $text-eyebrow;
+  span {
+    color: $text-body;
+    font-size: $admin-text-sm;
+  }
+}
+
+.kpi.warn {
+  border-color: rgba($yellow-deep, 0.35);
+  background: $yellow-wash;
+
+  .kpi-icon {
+    background: rgba($yellow, 0.35);
+    color: $yellow-deep;
+  }
+
+  strong {
+    color: $yellow-deep;
+  }
+
+  &.active {
+    border-color: $yellow-deep;
+    box-shadow: 0 0 0 3px rgba($yellow-deep, 0.2);
+  }
+}
+
+.kpi.ok {
+  border-color: rgba($ok, 0.3);
+  background: $ok-wash;
+
+  .kpi-icon {
+    background: rgba($ok, 0.14);
+    color: $ok;
+  }
+
+  strong {
+    color: $ok;
+  }
+
+  &.active {
+    border-color: $ok;
+    box-shadow: 0 0 0 3px rgba($ok, 0.18);
+  }
+}
+
+// Sin nada pendiente, la tarjeta de acción se apaga para no llamar la atención.
+.kpi.idle:not(.active) {
+  border-color: $border-subtle;
+  background: $surface-card;
+
+  .kpi-icon {
+    background: $surface-sunken;
+    color: $text-muted;
+  }
+
+  strong {
+    color: $text-strong;
+  }
+}
+
+// Pastillas por estado: en el celular se deslizan de lado sin mover la página.
+.status-strip {
+  display: flex;
+  gap: $space-2;
+  overflow-x: auto;
+  margin-inline: calc(-1 * #{$space-4});
+  padding: 2px $space-4 $space-1;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.pill {
+  @include admin-pill;
+  flex: none;
+
+  > i {
+    font-size: $admin-text-xs;
+  }
+
+  &.paid > i {
+    color: $ok;
+  }
+
+  &.pending > i {
+    color: $yellow-deep;
+  }
+
+  &.whatsapp > i {
+    color: $magenta;
+  }
+
+  &.processing > i,
+  &.shipped > i {
+    color: $cyan-deep;
+  }
+
+  &.cancelled > i {
+    color: $danger;
+  }
+
+  &.active > i {
+    color: inherit;
   }
 }
 
@@ -475,13 +530,15 @@ onMounted(() => {
   border: 1px solid $border-subtle;
   border-radius: $radius-lg;
   background: $surface-card;
-  box-shadow: $shadow-sm;
+  box-shadow: $shadow-xs;
 }
 
 .toolbar {
   @include admin-toolbar;
-  padding: $space-4 $space-5;
+  gap: $space-3;
+  padding: $space-4;
   border-bottom: 1px solid $border-subtle;
+  background: $surface-card;
 }
 
 .search {
@@ -490,12 +547,14 @@ onMounted(() => {
 }
 
 .filter {
-  flex: 1 1 160px;
+  flex: 1 1 200px;
 }
 
 .count {
-  @include mono-data($text-muted, $text-eyebrow);
+  color: $text-muted;
+  font-size: $admin-text-sm;
   margin-left: auto;
+  white-space: nowrap;
 }
 
 .order-list {
@@ -504,9 +563,11 @@ onMounted(() => {
 }
 
 .state {
+  @include row($space-2);
+  justify-content: center;
   padding: $space-12;
   color: $text-muted;
-  text-align: center;
+  font-size: $admin-text-md;
 }
 
 .empty {
@@ -514,16 +575,36 @@ onMounted(() => {
 }
 
 @include from($bp-md) {
+  .kpi {
+    flex-basis: 200px;
+    padding: $space-4 $space-5;
+  }
+
+  .kpi-icon {
+    display: flex;
+  }
+
+  .kpi-copy strong {
+    font-size: 1.6rem;
+  }
+
   .toolbar {
-    padding: $space-5 $space-6;
+    padding: $space-4 $space-5;
   }
 
   .search {
-    flex: 1 1 280px;
+    flex: 1 1 320px;
   }
 
   .filter {
-    flex: 0 1 200px;
+    flex: 0 1 230px;
+  }
+
+  .status-strip {
+    flex-wrap: wrap;
+    overflow: visible;
+    margin-inline: 0;
+    padding-inline: 0;
   }
 }
 </style>

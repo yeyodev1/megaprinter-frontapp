@@ -147,7 +147,7 @@ defineExpose({ priceError })
 .field-error {
   @include row($space-2);
   color: $danger-500;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
   font-weight: $weight-semibold;
 }
 
@@ -206,12 +206,12 @@ defineExpose({ priceError })
   @include stack(2px);
 
   strong {
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
   }
 
   small {
     color: $text-muted;
-    font-size: $text-eyebrow;
+    font-size: $admin-text-xs;
   }
 }
 

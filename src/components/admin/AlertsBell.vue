@@ -132,7 +132,7 @@ onBeforeUnmount(() => clearInterval(timer))
   border-radius: $radius-pill;
   background: $danger-500;
   color: $paper-white;
-  font-size: 0.6875rem;
+  font-size: $admin-text-xs;
   font-weight: $weight-black;
   text-align: center;
 }
@@ -171,13 +171,13 @@ onBeforeUnmount(() => clearInterval(timer))
 .read-all {
   @include button-ghost;
   padding: $space-1 $space-2;
-  font-size: $text-eyebrow;
+  font-size: $admin-text-xs;
 }
 
 .empty {
   padding: $space-6;
   color: $text-muted;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
   text-align: center;
 }
 
@@ -210,7 +210,7 @@ onBeforeUnmount(() => clearInterval(timer))
     justify-content: center;
     border-radius: $radius-pill;
     background: $surface-sunken;
-    font-size: $text-caption;
+    font-size: $admin-text-sm;
   }
 
   &.ok .icon {
@@ -239,18 +239,18 @@ onBeforeUnmount(() => clearInterval(timer))
   min-width: 0;
 
   strong {
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
   }
 
   small {
     color: $text-body;
-    font-size: $text-caption;
+    font-size: $admin-text-sm;
     overflow-wrap: anywhere;
   }
 
   time {
     color: $text-muted;
-    font-size: $text-eyebrow;
+    font-size: $admin-text-xs;
   }
 }
 </style>

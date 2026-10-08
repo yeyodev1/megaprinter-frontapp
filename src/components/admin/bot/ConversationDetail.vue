@@ -73,7 +73,7 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
         </button>
         <div class="who">
           <strong>{{ state.customerName || conversation.phone }}</strong>
-          <span>{{ conversation.phone }} · activo {{ timeAgo(conversation.updatedAt) }}</span>
+          <span><span class="mono">{{ conversation.phone }}</span> · activo {{ timeAgo(conversation.updatedAt) }}</span>
         </div>
         <div class="head-actions">
           <a v-if="waLink(conversation.phone)" :href="waLink(conversation.phone)" target="_blank" rel="noopener" class="wa">
@@ -197,6 +197,10 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 </template>
 
 <style scoped lang="scss">
+// Fondo del chat como WhatsApp: el asesor reconoce de inmediato quien dijo que.
+$chat-bg: #efeae2;
+$bubble-out: #d9fdd3;
+
 .detail {
   @include stack($space-4);
   min-width: 0;
@@ -204,16 +208,25 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 }
 
 .placeholder {
-  @include stack($space-2);
+  @include stack($space-3);
   align-items: center;
   justify-content: center;
-  min-height: 280px;
+  min-height: 320px;
+  flex: 1;
   color: $text-muted;
+  font-size: $admin-text-md;
   text-align: center;
 
   i {
+    display: flex;
+    width: 64px;
+    height: 64px;
+    align-items: center;
+    justify-content: center;
+    border-radius: $radius-pill;
+    background: rgba($whatsapp, 0.14);
     color: $whatsapp;
-    font-size: 2rem;
+    font-size: 1.75rem;
   }
 
   .error {
@@ -224,6 +237,8 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 .head {
   @include row($space-3);
   flex-wrap: wrap;
+  padding-bottom: $space-4;
+  border-bottom: 1px solid $border-subtle;
 }
 
 .back {
@@ -238,44 +253,59 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 
   strong {
     @include truncate;
-    font-size: $text-subheading;
+    color: $text-strong;
+    font-size: $admin-text-lg;
+    font-weight: $weight-bold;
   }
 
-  span {
-    @include mono-data($text-muted, $text-eyebrow);
+  > span {
+    color: $text-muted;
+    font-size: $admin-text-sm;
+  }
+
+  .mono {
+    font-family: $font-mono;
+    font-variant-numeric: tabular-nums;
   }
 }
 
 .head-actions {
   display: flex;
+  width: 100%;
   gap: $space-2;
+
+  > * {
+    flex: 1;
+  }
 }
 
 .wa {
   @include button-whatsapp;
-  padding: $space-2 $space-3;
-  font-size: $text-caption;
+  padding: $space-2 $space-4;
+  font-size: $admin-text-sm;
 }
 
 .reset {
   @include button-secondary;
-  padding: $space-2 $space-3;
-  font-size: $text-caption;
+  padding: $space-2 $space-4;
+  font-size: $admin-text-sm;
 }
 
 .funnel {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   overflow-x: auto;
+  scrollbar-width: none;
 
   li {
     @include row(6px);
     flex: none;
-    padding: $space-1 $space-2;
+    min-height: 30px;
+    padding: 4px 10px;
     border-radius: $radius-pill;
     background: $surface-sunken;
     color: $text-muted;
-    font-size: 0.6875rem;
+    font-size: $admin-text-xs;
     white-space: nowrap;
 
     span {
@@ -289,9 +319,13 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
   }
 
   .current {
-    background: $cyan;
-    color: $key-900;
+    background: $key-900;
+    color: $text-on-dark;
     font-weight: $weight-semibold;
+
+    i {
+      color: $cyan-soft;
+    }
 
     span {
       display: inline;
@@ -306,26 +340,33 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 }
 
 .fact {
-  @include stack($space-1);
-  flex: 1 1 200px;
+  @include stack(6px);
+  flex: 1 1 150px;
   min-width: 0;
-  padding: $space-3;
-  border-radius: $radius-sm;
-  background: $surface-sunken;
-  font-size: $text-caption;
+  padding: $space-3 $space-4;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-md;
+  background: $surface-page;
+  font-size: $admin-text-sm;
 
   > span {
-    @include field-label;
+    @include admin-label($text-muted);
   }
 
   strong {
-    @include row($space-1);
-    font-size: $text-body-sm;
+    @include row(6px);
+    color: $text-strong;
+    font-size: $admin-text-md;
+
+    i {
+      color: $cyan-deep;
+    }
   }
 
   ul {
-    @include stack(2px);
+    @include stack(4px);
     color: $text-body;
+    overflow-wrap: anywhere;
   }
 
   .missing {
@@ -347,20 +388,27 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 
 .tabs {
   display: flex;
-  gap: $space-2;
+  gap: $space-1;
   border-bottom: 1px solid $border-subtle;
 
   button {
     @include row($space-2);
+    min-height: 42px;
     padding: $space-2 $space-3;
+    margin-bottom: -1px;
     border: 0;
     border-bottom: 2px solid transparent;
     background: none;
     color: $text-muted;
-    font-size: $text-caption;
+    font-size: $admin-text-md;
     font-weight: $weight-semibold;
     cursor: pointer;
+    transition: color $duration-base $ease-out, border-color $duration-base $ease-out;
     @include focus-ring;
+
+    &:hover {
+      color: $text-strong;
+    }
 
     &.active {
       border-color: $cyan;
@@ -371,98 +419,111 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 
 .chat {
   @include stack($space-2);
-  max-height: 560px;
+  max-height: 70vh;
   overflow-y: auto;
-  padding: $space-3;
-  border-radius: $radius-sm;
-  background: $surface-sunken;
+  padding: $space-4;
+  border-radius: $radius-md;
+  background: $chat-bg;
+  overscroll-behavior: contain;
 }
 
 .bubble {
   @include stack(4px);
-  max-width: 85%;
+  max-width: 82%;
   padding: $space-2 $space-3;
   border-radius: $radius-md;
-  font-size: $text-body-sm;
-  line-height: $leading-body;
+  box-shadow: 0 1px 1px rgba($key-900, 0.08);
+  color: $text-strong;
+  font-size: $admin-text-md;
+  line-height: 1.5;
 
   p {
     white-space: pre-line;
     overflow-wrap: anywhere;
   }
 
+  p :deep(a) {
+    color: $cyan-dark;
+  }
+
   time {
     align-self: flex-end;
     color: $text-muted;
-    font-size: 0.625rem;
+    font-size: $admin-text-xs;
+    font-variant-numeric: tabular-nums;
   }
 
   &.user {
     align-self: flex-start;
-    border-bottom-left-radius: $radius-xs;
+    border-top-left-radius: $radius-xs;
     background: $surface-card;
   }
 
   &.assistant {
     align-self: flex-end;
-    border-bottom-right-radius: $radius-xs;
-    background: rgba($whatsapp, 0.16);
+    border-top-right-radius: $radius-xs;
+    background: $bubble-out;
   }
 }
 
 .media {
   display: flex;
   overflow: hidden;
-  border-radius: $radius-xs;
+  border-radius: $radius-sm;
+  background: $surface-card;
   @include focus-ring;
 
   img {
+    width: 100%;
     max-width: 220px;
     max-height: 220px;
-    object-fit: cover;
+    object-fit: contain;
   }
 
   span {
     @include row($space-2);
-    padding: $space-2;
+    padding: $space-3;
+    color: $danger-500;
     font-weight: $weight-semibold;
   }
 }
 
 .activity {
-  @include stack($space-2);
+  @include stack($space-3);
 }
 
 .empty {
-  padding: $space-6;
+  padding: $space-8 $space-6;
   color: $text-muted;
-  font-size: $text-caption;
+  font-size: $admin-text-md;
   text-align: center;
 }
 
 .turn {
-  @include stack($space-2);
-  padding: $space-3;
+  @include stack($space-3);
+  padding: $space-4;
   border: 1px solid $border-subtle;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
+  background: $surface-card;
 
   &.failed {
-    border-color: $danger-500;
+    border-color: rgba($danger-500, 0.4);
     background: $danger-100;
   }
 }
 
 .turn-head {
-  @include row($space-2, baseline);
+  @include row($space-3, baseline);
 
   time {
-    @include mono-data($text-muted, $text-eyebrow);
+    @include mono-data($text-muted, $admin-text-xs);
     flex: none;
   }
 
   .said {
     min-width: 0;
-    font-size: $text-body-sm;
+    color: $text-strong;
+    font-size: $admin-text-md;
     font-weight: $weight-semibold;
     overflow-wrap: anywhere;
   }
@@ -476,20 +537,17 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 }
 
 .step {
-  @include stack(2px);
-  padding: $space-2;
-  border-radius: $radius-xs;
+  @include stack(4px);
+  padding: $space-2 $space-3;
+  border-radius: $radius-sm;
   background: $surface-sunken;
 
   small {
-    color: $text-muted;
-    font-size: 0.625rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    @include admin-label($text-muted);
   }
 
   strong {
-    font-size: $text-caption;
+    font-size: $admin-text-sm;
 
     &.ok {
       color: $success-500;
@@ -505,7 +563,7 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
   }
 
   em {
-    @include mono-data($text-muted, 0.625rem);
+    @include mono-data($text-muted, $admin-text-xs);
     font-style: normal;
   }
 
@@ -520,14 +578,17 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
 
 .arrow {
   color: $text-muted;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
 }
 
 .reply {
-  padding: $space-2 $space-3;
+  padding: $space-3;
   border-left: 3px solid $whatsapp;
+  border-radius: 0 $radius-sm $radius-sm 0;
+  background: $surface-page;
   color: $text-body;
-  font-size: $text-caption;
+  font-size: $admin-text-md;
+  line-height: 1.5;
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
@@ -537,8 +598,31 @@ watch(tab, (value) => value === 'chat' && scrollChatToEnd())
     display: none;
   }
 
+  .head-actions {
+    width: auto;
+
+    > * {
+      flex: none;
+    }
+  }
+
   .detail {
-    padding: $space-6;
+    height: 100%;
+    padding: $space-5 $space-6;
+    overflow: hidden;
+  }
+
+  .fact ul {
+    max-height: 92px;
+    overflow-y: auto;
+  }
+
+  .chat,
+  .activity {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
   }
 }
 </style>

@@ -57,11 +57,11 @@ const cancelLabel = computed(() => current.value?.options.cancelLabel ?? 'Cancel
   }
 
   p {
-    @include body-text($text-body, $text-body-sm);
+    @include body-text($text-body, $admin-text-md);
   }
 
   code {
-    @include mono-data($text-strong, $text-caption);
+    @include mono-data($text-strong, $admin-text-sm);
     padding: $space-2 $space-3;
     border-radius: $radius-xs;
     background: $surface-sunken;

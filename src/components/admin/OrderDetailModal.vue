@@ -104,15 +104,26 @@ const request = (status: OrderStatus | null) => {
 <template>
   <AppModal :open="!!order" size="lg" eyebrow="Detalle del pedido" :title="order?.customerName ?? ''" @close="emit('close')">
     <div v-if="order" class="detail">
-      <section class="block customer">
-        <div class="block-head">
-          <span class="source" :class="order.source"><i :class="sourceIcon(order.source)" aria-hidden="true"></i></span>
-          <div>
-            <p class="eyebrow">{{ sourceLabel(order.source) }}</p>
+      <section class="hero">
+        <span class="source" :class="order.source"><i :class="sourceIcon(order.source)" aria-hidden="true"></i></span>
+        <div class="hero-copy">
+          <p class="hero-label"><span class="mono">{{ orderCode(order) }}</span> · {{ sourceLabel(order.source) }}</p>
+          <div class="hero-badges">
             <OrderStatusBadge :status="order.status" />
+            <span class="channel-tag">
+              <i :class="fromBot(order) ? 'fa-solid fa-robot' : 'fa-solid fa-globe'" aria-hidden="true"></i>
+              {{ fromBot(order) ? 'Bot de WhatsApp' : 'Tienda web' }}
+            </span>
           </div>
         </div>
+        <div class="hero-total">
+          <span>Total</span>
+          <strong>{{ formatMoney(order.totalAmount) }}</strong>
+        </div>
+      </section>
 
+      <section class="block panel">
+        <h3 class="section-title"><i class="fa-solid fa-user" aria-hidden="true"></i> Cliente</h3>
         <dl class="facts">
           <div>
             <dt>Correo</dt>
@@ -122,7 +133,7 @@ const request = (status: OrderStatus | null) => {
             <dt>Teléfono</dt>
             <dd><a :href="phoneLink(order.customerPhone)">{{ order.customerPhone }}</a></dd>
           </div>
-          <div>
+          <div class="wide">
             <dt>Dirección</dt>
             <dd>{{ order.address || 'Sin dirección' }}</dd>
           </div>
@@ -133,14 +144,6 @@ const request = (status: OrderStatus | null) => {
           <div>
             <dt>Actualizado</dt>
             <dd>{{ formatDate(order.updatedAt) }}</dd>
-          </div>
-          <div>
-            <dt>Pedido</dt>
-            <dd class="mono">{{ orderCode(order) }}</dd>
-          </div>
-          <div>
-            <dt>Canal</dt>
-            <dd>{{ fromBot(order) ? 'Bot de WhatsApp' : 'Tienda web' }}</dd>
           </div>
         </dl>
 
@@ -158,8 +161,8 @@ const request = (status: OrderStatus | null) => {
         </div>
       </section>
 
-      <section class="block">
-        <p class="eyebrow">Artículos</p>
+      <section class="block panel">
+        <h3 class="section-title"><i class="fa-solid fa-box" aria-hidden="true"></i> Artículos</h3>
         <div class="items">
           <div class="row head">
             <span class="name">Producto</span>
@@ -180,9 +183,9 @@ const request = (status: OrderStatus | null) => {
         </div>
       </section>
 
-      <section v-if="transfer" class="block transfer">
+      <section v-if="transfer" class="block panel transfer" :class="{ attention: canReview }">
         <div class="transfer-head">
-          <p class="eyebrow">Transferencia</p>
+          <h3 class="section-title"><i class="fa-solid fa-building-columns" aria-hidden="true"></i> Transferencia</h3>
           <span v-if="transferMeta" class="transfer-status" :class="transferMeta.tone">
             <i :class="transferMeta.icon" aria-hidden="true"></i>{{ transferMeta.label }}
           </span>
@@ -259,8 +262,8 @@ const request = (status: OrderStatus | null) => {
         </div>
       </section>
 
-      <section v-if="canShip || order.shipping?.trackingNumber || order.shipping?.guideUrl" class="block shipping">
-        <p class="eyebrow">Guía de envío</p>
+      <section v-if="canShip || order.shipping?.trackingNumber || order.shipping?.guideUrl" class="block panel shipping">
+        <h3 class="section-title"><i class="fa-solid fa-truck-fast" aria-hidden="true"></i> Guía de envío</h3>
         <p v-if="order.shipping?.guideUrl || order.shipping?.trackingNumber" class="shipping-current">
           <i class="fa-solid fa-truck-fast" aria-hidden="true"></i>
           <span>
@@ -293,8 +296,8 @@ const request = (status: OrderStatus | null) => {
         </form>
       </section>
 
-      <section class="block">
-        <p class="eyebrow">Estado del pedido</p>
+      <section class="block panel">
+        <h3 class="section-title"><i class="fa-solid fa-route" aria-hidden="true"></i> Estado del pedido</h3>
 
         <ol class="timeline" :class="{ cancelled: isCancelled }">
           <li v-for="(status, index) in path" :key="status" :class="stepState(index)">
@@ -311,9 +314,10 @@ const request = (status: OrderStatus | null) => {
           Este pedido está cancelado. Puedes reabrirlo para retomar el flujo.
         </p>
 
-        <ul v-if="order.statusHistory?.length" class="history">
-          <li v-for="(entry, index) in order.statusHistory" :key="index">
-            <strong>{{ orderStatusMeta(entry.status).label }}</strong> · {{ formatDate(entry.at) }}<template v-if="entry.by"> · {{ entry.by }}</template>
+        <ul v-if="order.statusHistory?.length" class="history" aria-label="Historial de estados">
+          <li v-for="(entry, index) in [...order.statusHistory].reverse()" :key="index">
+            <i :class="orderStatusMeta(entry.status).icon" aria-hidden="true"></i>
+            <span><strong>{{ orderStatusMeta(entry.status).label }}</strong> · {{ formatDate(entry.at) }}<template v-if="entry.by"> · {{ entry.by }}</template></span>
           </li>
         </ul>
 
@@ -352,29 +356,95 @@ const request = (status: OrderStatus | null) => {
 
 <style scoped lang="scss">
 .detail {
-  @include stack($space-6);
+  @include stack($space-4);
 }
 
 .block {
   @include stack($space-4);
 }
 
-.eyebrow {
-  @include eyebrow;
+.panel {
+  padding: $space-4;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  background: $surface-card;
+
+  &.attention {
+    border-color: rgba($yellow-deep, 0.4);
+    box-shadow: 0 0 0 3px rgba($yellow, 0.18);
+  }
 }
 
-.block-head {
-  @include row($space-3, flex-start);
+.section-title {
+  @include row($space-2);
+  color: $text-strong;
+  font-family: $font-sans;
+  font-size: $admin-text-base;
+  font-weight: $weight-bold;
 
-  > div {
-    @include stack($space-2);
+  i {
+    color: $cyan-deep;
+    font-size: $admin-text-sm;
+  }
+}
+
+// Cabecera del pedido: origen, estado, canal y total de un vistazo.
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-3 $space-4;
+  padding: $space-4;
+  border-radius: $radius-lg;
+  background: $surface-sunken;
+}
+
+.hero-copy {
+  @include stack($space-2);
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.hero-label {
+  color: $text-body;
+  font-size: $admin-text-sm;
+
+  .mono {
+    @include mono-data($text-strong, $admin-text-sm);
+    font-weight: $weight-medium;
+  }
+}
+
+.hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+}
+
+.channel-tag {
+  @include admin-badge($text-body, $surface-card);
+}
+
+.hero-total {
+  @include stack(2px);
+  align-items: flex-end;
+  margin-left: auto;
+
+  span {
+    @include admin-label($text-muted);
+  }
+
+  strong {
+    @include price(1.6rem);
+    font-weight: $weight-bold;
   }
 }
 
 .source {
   display: flex;
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
+  font-size: 1.1rem;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -403,7 +473,7 @@ const request = (status: OrderStatus | null) => {
 }
 
 .transfer-status {
-  @include badge;
+  @include admin-badge;
 
   &.review {
     background: $warning-100;
@@ -427,14 +497,14 @@ const request = (status: OrderStatus | null) => {
   padding: $space-2 $space-3;
   border-radius: $radius-sm;
   background: $brand-100;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
 
   i {
     color: $cyan-dark;
   }
 
   .mono {
-    @include mono-data($text-strong, $text-caption);
+    @include mono-data($text-strong, $admin-text-sm);
   }
 
   a {
@@ -468,7 +538,7 @@ const request = (status: OrderStatus | null) => {
 
 .emails {
   @include stack(4px);
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
 
   li {
     @include row($space-2, flex-start);
@@ -490,9 +560,29 @@ const request = (status: OrderStatus | null) => {
 }
 
 .history {
-  @include stack(2px);
+  @include stack($space-2);
+  padding: $space-3;
+  border-radius: $radius-md;
+  background: $surface-sunken;
   color: $text-body;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
+
+  li {
+    @include row($space-2, flex-start);
+  }
+
+  i {
+    width: 16px;
+    margin-top: 3px;
+    flex: none;
+    color: $text-muted;
+    font-size: $admin-text-xs;
+    text-align: center;
+  }
+
+  strong {
+    color: $text-strong;
+  }
 }
 
 .transfer-account {
@@ -500,7 +590,7 @@ const request = (status: OrderStatus | null) => {
   padding: $space-2 $space-3;
   border-radius: $radius-sm;
   background: $surface-sunken;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
 
   img {
     width: 22px;
@@ -509,7 +599,7 @@ const request = (status: OrderStatus | null) => {
   }
 
   .mono {
-    @include mono-data($text-strong, $text-caption);
+    @include mono-data($text-strong, $admin-text-sm);
   }
 }
 
@@ -518,20 +608,22 @@ const request = (status: OrderStatus | null) => {
 .reviewed {
   @include row($space-2, flex-start);
   color: $text-muted;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
 }
 
 .receipt {
   display: flex;
   flex-direction: column;
-  gap: $space-3;
+  gap: $space-4;
   padding: $space-3;
   border: 1px solid $border-subtle;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
+  background: $surface-page;
 }
 
 .receipt-media {
   display: flex;
+  max-height: 260px;
   overflow: hidden;
   border-radius: $radius-xs;
   background: $surface-sunken;
@@ -539,7 +631,7 @@ const request = (status: OrderStatus | null) => {
 
   img {
     width: 100%;
-    max-height: 320px;
+    max-height: 260px;
     object-fit: contain;
   }
 
@@ -557,12 +649,13 @@ const request = (status: OrderStatus | null) => {
 }
 
 .receipt-meta {
-  @include mono-data($text-muted, $text-eyebrow);
+  color: $text-muted;
+  font-size: $admin-text-sm;
 }
 
 .receipt-summary {
   @include row($space-2, flex-start);
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
 
   i {
     margin-top: 3px;
@@ -580,7 +673,7 @@ const request = (status: OrderStatus | null) => {
   gap: $space-2;
 
   li {
-    @include badge;
+    @include admin-badge;
   }
 
   .ok {
@@ -602,7 +695,7 @@ const request = (status: OrderStatus | null) => {
   @include stack($space-1);
 
   > span {
-    @include field-label;
+    @include admin-label;
   }
 
   input {
@@ -632,32 +725,38 @@ const request = (status: OrderStatus | null) => {
 .facts {
   display: flex;
   flex-wrap: wrap;
-  gap: $space-3;
+  gap: $space-4 $space-5;
 
   > div {
-    @include stack(2px);
-    flex: 1 1 160px;
+    @include stack(4px);
+    flex: 1 1 140px;
     min-width: 0;
-    padding: $space-3;
-    border-radius: $radius-sm;
-    background: $surface-sunken;
+
+    &.wide {
+      flex-basis: 100%;
+    }
   }
 
   dt {
-    @include field-label;
+    @include admin-label($text-muted);
   }
 
   dd {
-    @include truncate;
-    font-size: $text-body-sm;
+    color: $text-strong;
+    font-size: $admin-text-md;
+    overflow-wrap: anywhere;
 
-    a:hover {
-      color: $brand-600;
+    a {
+      color: $cyan-dark;
+
+      &:hover {
+        text-decoration: underline;
+      }
     }
   }
 
   .mono {
-    @include mono-data($text-body, $text-caption);
+    @include mono-data($text-body, $admin-text-sm);
   }
 }
 
@@ -678,8 +777,9 @@ const request = (status: OrderStatus | null) => {
 .items {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   border: 1px solid $border-subtle;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
 }
 
 .row {
@@ -689,7 +789,7 @@ const request = (status: OrderStatus | null) => {
   gap: $space-2 $space-3;
   padding: $space-3 $space-4;
   border-top: 1px solid $border-subtle;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
 
   &:first-child {
     border-top: 0;
@@ -704,7 +804,7 @@ const request = (status: OrderStatus | null) => {
   .qty,
   .unit,
   .sub {
-    @include mono-data($text-body, $text-caption);
+    @include mono-data($text-body, $admin-text-sm);
   }
 
   .sub {
@@ -744,7 +844,7 @@ const request = (status: OrderStatus | null) => {
     border-radius: $radius-pill;
     background: $surface-card;
     color: $text-muted;
-    font-size: $text-caption;
+    font-size: $admin-text-sm;
   }
 
   .step-copy {
@@ -752,12 +852,13 @@ const request = (status: OrderStatus | null) => {
     padding-top: 5px;
 
     strong {
-      font-size: $text-body-sm;
+      font-size: $admin-text-md;
     }
 
     small {
       color: $text-muted;
-      font-size: $text-eyebrow;
+      font-size: $admin-text-xs;
+      line-height: 1.4;
     }
   }
 
@@ -778,9 +879,16 @@ const request = (status: OrderStatus | null) => {
     color: $cyan-dark;
   }
 
+  // Pasos que faltan: grises pero legibles (antes con opacity quedaban ilegibles).
   .upcoming,
   .muted {
-    opacity: 0.55;
+    .dot {
+      border-style: dashed;
+    }
+
+    strong {
+      color: $text-body;
+    }
   }
 }
 
@@ -816,13 +924,21 @@ const request = (status: OrderStatus | null) => {
 }
 
 @include from($bp-md) {
+  .panel {
+    padding: $space-5;
+  }
+
+  .hero {
+    padding: $space-4 $space-5;
+  }
+
   .receipt {
     flex-direction: row;
     align-items: flex-start;
   }
 
   .receipt-media {
-    width: 200px;
+    width: 180px;
     flex: none;
   }
 
@@ -850,7 +966,7 @@ const request = (status: OrderStatus | null) => {
       background: $surface-sunken;
 
       span {
-        @include field-label;
+        @include admin-label;
       }
     }
 

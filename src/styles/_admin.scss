@@ -7,6 +7,18 @@
 @use 'tokens' as *;
 @use 'mixins' as *;
 
+// -----------------------------------------------------------------------------
+// Escala de texto del panel. El sitio publico usa 11-13px para etiquetas y
+// datos; en un panel que se lee horas eso cansa (pedido del cliente oct-2026:
+// "el texto esta pequeño"). Ningun texto del panel baja de 13px.
+// -----------------------------------------------------------------------------
+$admin-text-xs: 0.8125rem; // 13px: etiquetas, badges, metadatos
+$admin-text-sm: 0.875rem; // 14px: texto secundario
+$admin-text-md: 0.9375rem; // 15px: texto de tarjetas y tablas
+$admin-text-base: 1rem; // 16px: cuerpo
+$admin-text-lg: 1.125rem; // 18px: titulos de tarjeta
+$admin-text-title: clamp(1.75rem, 2.4vw, 2.25rem);
+
 // Vista dentro de AdminLayout (el layout ya aporta sidebar, contenedor y
 // padding); la vista solo apila sus bloques.
 @mixin admin-page {
@@ -24,8 +36,9 @@
 @mixin admin-search {
   @include row($space-2);
   min-width: 220px;
+  min-height: 44px;
   flex: 1;
-  padding: $space-2 $space-3;
+  padding: $space-2 $space-4;
   border: 1px solid $border-strong;
   border-radius: $radius-sm;
   background: $surface-card;
@@ -43,7 +56,7 @@
     background: transparent;
     color: $text-strong;
     font: inherit;
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
     outline: none;
 
     &::placeholder {
@@ -58,7 +71,7 @@
   gap: $space-2;
   padding: $space-3 $space-4;
   border-radius: $radius-sm;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
   font-weight: $weight-semibold;
 
   &.ok {
@@ -91,19 +104,41 @@
   }
 }
 
+// Cabecera compacta de una vista: titulo en una linea y acciones a la derecha.
+// Antes era un titular de portada a dos lineas que empujaba el contenido real
+// media pantalla hacia abajo.
 @mixin admin-header {
-  @include stack($space-6);
-  margin-bottom: $space-8;
+  @include stack($space-4);
+  padding-bottom: $space-5;
+  border-bottom: 1px solid $border-subtle;
 
   h1 {
-    @include display-heading($text-display);
-    margin-top: $space-3;
+    margin-top: $space-2;
+    color: $text-strong;
+    font-family: $font-display;
+    font-size: $admin-text-title;
+    font-weight: $weight-black;
+    letter-spacing: $tracking-display;
+    line-height: 1.1;
+
+    br {
+      display: none;
+    }
+
+    em {
+      color: $cyan-deep;
+      font-style: normal;
+    }
+
+    em::before {
+      content: ' ';
+    }
   }
 
   p {
-    @include body-text;
-    max-width: 46ch;
-    margin-top: $space-3;
+    @include body-text($text-body, $admin-text-md);
+    max-width: 62ch;
+    margin-top: $space-2;
   }
 
   @include from($bp-md) {
@@ -111,15 +146,91 @@
     align-items: flex-end;
     justify-content: space-between;
   }
+
+  // La campana de alertas va fija arriba a la derecha: las acciones no se meten debajo.
+  @include from($bp-lg) {
+    padding-right: 56px;
+  }
 }
 
-@mixin admin-eyebrow {
-  @include eyebrow;
+@mixin admin-eyebrow($color: $cyan-deep) {
+  @include eyebrow($color);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+}
+
+// Etiqueta de campo o de dato: legible, sin mayusculas forzadas.
+@mixin admin-label($color: $text-body) {
+  color: $color;
+  font-family: $font-sans;
+  font-size: $admin-text-xs;
+  font-weight: $weight-semibold;
+  letter-spacing: 0.01em;
+}
+
+// Badge del panel: pill, 13px, en minusculas normales.
+@mixin admin-badge($fg: $text-body, $bg: $surface-sunken) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  padding: 4px 10px;
+  border-radius: $radius-pill;
+  background: $bg;
+  color: $fg;
+  font-family: $font-sans;
+  font-size: $admin-text-xs;
+  font-weight: $weight-semibold;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+// Filtro tipo pastilla (estado, tipo). `.active` marca el elegido.
+@mixin admin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-pill;
+  background: $surface-card;
+  color: $text-body;
+  font-family: $font-sans;
+  font-size: $admin-text-sm;
+  font-weight: $weight-medium;
+  cursor: pointer;
+  transition: border-color $duration-base $ease-out, background $duration-base $ease-out, color $duration-base $ease-out;
+  @include focus-ring;
+
+  strong {
+    font-family: $font-mono;
+    font-size: $admin-text-xs;
+    color: $text-muted;
+  }
+
+  &:hover {
+    border-color: $border-strong;
+    color: $text-strong;
+  }
+
+  &.active {
+    border-color: $key-900;
+    background: $key-900;
+    color: $text-on-dark;
+
+    strong {
+      color: $cyan-soft;
+    }
+  }
 }
 
 @mixin admin-card($padding: $space-6) {
-  @include card($padding);
+  padding: $padding;
+  border: 1px solid $border-subtle;
   border-radius: $radius-lg;
+  background: $surface-card;
+  box-shadow: $shadow-xs;
 }
 
 @mixin admin-card-title {
@@ -140,12 +251,12 @@
   }
 
   span {
-    @include eyebrow;
+    @include admin-eyebrow;
   }
 
   h2 {
     margin-top: 2px;
-    font-size: $text-subheading;
+    font-size: $admin-text-lg;
   }
 }
 
@@ -170,7 +281,7 @@
 
   span {
     color: $text-on-dark-muted;
-    font-size: $text-eyebrow;
+    font-size: $admin-text-xs;
   }
 }
 
@@ -190,7 +301,7 @@
   @include stack($space-2);
 
   > span {
-    @include field-label;
+    @include admin-label($text-strong);
   }
 
   input,
@@ -227,7 +338,7 @@
 }
 
 @mixin admin-status-badge {
-  @include badge;
+  @include admin-badge;
 
   &.paid {
     background: $success-100;

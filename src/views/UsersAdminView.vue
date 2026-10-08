@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { createUser, deleteUser, listUsers, type InternalUser } from '@/services/users'
 import { errorMessage } from '@/services/http'
 import { useAuthStore } from '@/stores/auth'
@@ -26,7 +26,14 @@ const initials = (name: string) =>
     .join('')
     .toUpperCase()
 
-const formatDate = (value: string) => new Date(value).toLocaleDateString('es-EC')
+const formatDate = (value: string) => new Date(value).toLocaleDateString('es-EC', { day: 'numeric', month: 'short', year: 'numeric' })
+
+// Color estable por persona (tintas CMYK) para distinguir avatares de un vistazo.
+const AVATAR_TONES = ['cyan', 'magenta', 'yellow', 'key']
+const avatarTone = (email: string) => AVATAR_TONES[[...email].reduce((sum, char) => sum + char.charCodeAt(0), 0) % AVATAR_TONES.length]
+
+// Lo más reciente primero.
+const sortedUsers = computed(() => [...users.value].sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 const flash = (text: string) => {
@@ -93,13 +100,13 @@ onMounted(load)
     <header class="page-header" data-admin-reveal>
       <div>
         <p class="eyebrow"><i class="fa-solid fa-users-gear" aria-hidden="true"></i> Equipo interno</p>
-        <h1>Personas que<br /><em>gestionan.</em></h1>
+        <h1>Usuarios</h1>
         <p>Crea accesos para quienes administran catálogo, pedidos y clientes.</p>
       </div>
       <div class="team-count">
         <i class="fa-solid fa-user-shield" aria-hidden="true"></i>
         <strong>{{ users.length }}</strong>
-        <span>accesos activos</span>
+        <span>{{ users.length === 1 ? 'acceso activo' : 'accesos activos' }}</span>
       </div>
     </header>
 
@@ -111,10 +118,13 @@ onMounted(load)
 
     <section class="workspace" data-admin-reveal>
       <form class="create-card" @submit.prevent="create">
-        <div class="card-title">
-          <div class="title-icon"><i class="fa-solid fa-user-plus" aria-hidden="true"></i></div>
-          <div><span>Nuevo acceso</span><h2>Invitar al equipo</h2></div>
-        </div>
+        <header class="card-head">
+          <span class="title-icon"><i class="fa-solid fa-user-plus" aria-hidden="true"></i></span>
+          <div>
+            <p class="eyebrow">Nuevo acceso</p>
+            <h2>Invitar al equipo</h2>
+          </div>
+        </header>
 
         <div class="form-body">
           <label class="field">
@@ -158,26 +168,29 @@ onMounted(load)
       </form>
 
       <section class="member-card">
-        <header>
-          <div><span>Directorio</span><h2>Accesos internos</h2></div>
-          <i class="fa-solid fa-address-book" aria-hidden="true"></i>
+        <header class="card-head">
+          <span class="title-icon"><i class="fa-solid fa-address-book" aria-hidden="true"></i></span>
+          <div>
+            <p class="eyebrow">Directorio</p>
+            <h2>Accesos internos</h2>
+          </div>
         </header>
 
         <p v-if="loading" class="state">Cargando accesos…</p>
 
-        <div v-else-if="users.length" class="members">
-          <article v-for="user in users" :key="user.id">
-            <div class="avatar" aria-hidden="true">{{ initials(user.name) }}</div>
+        <ul v-else-if="users.length" class="members">
+          <li v-for="user in sortedUsers" :key="user.id">
+            <span class="avatar" :class="avatarTone(user.email)" aria-hidden="true">{{ initials(user.name) }}</span>
             <div class="member-copy">
               <strong>
-                {{ user.name }}
+                <span class="name">{{ user.name }}</span>
                 <small v-if="user.id === auth.user?.id" class="you">Tú</small>
               </strong>
-              <span>{{ user.email }}</span>
+              <span class="email">{{ user.email }}</span>
             </div>
             <div class="member-side">
-              <time>
-                <i class="fa-solid fa-calendar-day" aria-hidden="true"></i>{{ formatDate(user.createdAt) }}
+              <time :datetime="user.createdAt" title="Fecha de alta">
+                <i class="fa-regular fa-calendar" aria-hidden="true"></i>{{ formatDate(user.createdAt) }}
               </time>
               <button
                 v-if="user.id !== auth.user?.id"
@@ -191,8 +204,8 @@ onMounted(load)
                 <i :class="deletingId === user.id ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-trash-can'" aria-hidden="true"></i>
               </button>
             </div>
-          </article>
-        </div>
+          </li>
+        </ul>
 
         <div v-else class="empty">
           <i class="fa-solid fa-users" aria-hidden="true"></i>
@@ -218,7 +231,24 @@ onMounted(load)
 }
 
 .team-count {
-  @include admin-stat-card;
+  @include row($space-2);
+  align-self: flex-start;
+  padding: $space-2 $space-4;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-pill;
+  background: $surface-card;
+  color: $text-body;
+  font-size: $admin-text-sm;
+
+  i {
+    color: $cyan-deep;
+  }
+
+  strong {
+    color: $text-strong;
+    font-family: $font-mono;
+    font-size: $admin-text-base;
+  }
 }
 
 .notice {
@@ -231,20 +261,38 @@ onMounted(load)
 
 .create-card,
 .member-card {
+  @include admin-card(0);
   overflow: hidden;
-  border: 1px solid $border-subtle;
-  border-radius: $radius-lg;
-  background: $surface-card;
-  box-shadow: $shadow-sm;
 }
 
-.card-title {
-  @include admin-card-title;
+.card-head {
+  @include row($space-3);
+  padding: $space-5;
+  border-bottom: 1px solid $border-subtle;
+
+  h2 {
+    margin-top: 2px;
+    color: $text-strong;
+    font-size: $admin-text-lg;
+    font-weight: $weight-bold;
+  }
+}
+
+.title-icon {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  background: $cyan-wash;
+  color: $cyan-deep;
 }
 
 .form-body {
   @include stack($space-4);
-  padding: $space-6;
+  padding: $space-5;
 }
 
 .field {
@@ -256,93 +304,114 @@ onMounted(load)
 }
 
 .security-note {
-  display: flex;
-  gap: $space-2;
+  @include row($space-2, flex-start);
   padding: $space-3;
   border-radius: $radius-sm;
-  background: $brand-100;
-  color: $brand-700;
-  font-size: $text-eyebrow;
+  background: $cyan-wash;
+  color: $cyan-dark;
+  font-size: $admin-text-sm;
   line-height: $leading-body;
 
   i {
-    color: $brand-600;
+    margin-top: 3px;
+    color: $cyan-deep;
   }
 }
 
 .form-body > button {
   @include button-primary;
-  padding: $space-4;
-}
-
-.member-card {
-  padding: $space-6;
-
-  > header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: $space-4;
-
-    span {
-      @include eyebrow;
-    }
-
-    h2 {
-      margin-top: 2px;
-      font-size: $text-subheading;
-    }
-
-    > i {
-      color: $brand-400;
-      font-size: 1.35rem;
-    }
-  }
+  min-height: 48px;
+  font-size: $admin-text-md;
 }
 
 .members {
   display: flex;
   flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 
-  article {
+  li {
     @include row($space-3);
-    padding-block: $space-3;
-    border-top: 1px solid $border-subtle;
+    padding: $space-4 $space-5;
+    border-bottom: 1px solid $border-subtle;
+    transition: background $duration-base $ease-out;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        background: $surface-page;
+
+        .delete {
+          opacity: 1;
+        }
+      }
+    }
   }
 }
 
 .avatar {
   display: flex;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   flex: none;
   align-items: center;
   justify-content: center;
   border-radius: $radius-pill;
-  background: $brand-100;
-  color: $brand-700;
-  font-size: $text-caption;
-  font-weight: $weight-black;
+  font-size: $admin-text-sm;
+  font-weight: $weight-bold;
+  letter-spacing: 0.02em;
+
+  &.cyan {
+    background: $cyan-mist;
+    color: $cyan-dark;
+  }
+
+  &.magenta {
+    background: $magenta-wash;
+    color: $magenta-deep;
+  }
+
+  &.yellow {
+    background: $yellow-wash;
+    color: $yellow-deep;
+  }
+
+  &.key {
+    background: $key-900;
+    color: $text-on-dark;
+  }
 }
 
 .member-copy {
-  @include stack(3px);
+  @include stack(2px);
   min-width: 0;
   flex: 1;
 
   strong {
     @include row($space-2);
-    font-size: $text-body-sm;
+    min-width: 0;
+    color: $text-strong;
+    font-size: $admin-text-base;
+    font-weight: $weight-semibold;
+  }
+
+  .name {
+    @include truncate;
   }
 
   .you {
-    @include badge($brand-700, $brand-100);
+    @include admin-badge($cyan-dark, $cyan-wash);
+    flex: none;
   }
 
-  span {
+  .email {
     @include truncate;
-    color: $text-muted;
-    font-size: $text-eyebrow;
+    color: $text-body;
+    font-size: $admin-text-sm;
   }
 }
 
@@ -352,18 +421,18 @@ onMounted(load)
 }
 
 .members time {
-  @include row($space-1);
+  display: none;
+  align-items: center;
+  gap: 6px;
   color: $text-muted;
-  font-size: 0.6875rem;
-
-  i {
-    color: $brand-400;
-  }
+  font-size: $admin-text-xs;
 }
 
 .delete {
   @include button-ghost($text-muted);
-  padding: $space-2 $space-3;
+  width: 40px;
+  height: 40px;
+  padding: 0;
 
   &:hover:not(:disabled) {
     background: $danger-100;
@@ -372,8 +441,9 @@ onMounted(load)
 }
 
 .state {
-  padding-block: $space-8;
+  padding: $space-10 $space-5;
   color: $text-muted;
+  font-size: $admin-text-md;
   text-align: center;
 }
 
@@ -381,19 +451,30 @@ onMounted(load)
   @include empty-state;
 }
 
-@include from($bp-md) {
+@include from($bp-sm) {
+  .members time {
+    display: inline-flex;
+  }
+}
+
+@include from($bp-lg) {
   .workspace {
     flex-direction: row;
     align-items: flex-start;
   }
 
   .create-card {
-    width: 44%;
+    width: 400px;
+    flex: none;
   }
 
   .member-card {
     flex: 1;
     min-width: 0;
+  }
+
+  .delete {
+    opacity: 0.55;
   }
 }
 </style>

@@ -80,8 +80,12 @@ onMounted(() => auth.loadUser())
 }
 
 .topbar-title {
-  @include mono-data($key-300, $text-eyebrow);
+  @include mono-data($key-300, $admin-text-xs);
+  @include truncate;
+  min-width: 0;
   margin-left: auto;
+  // Deja sitio a la campana de alertas (fija arriba a la derecha).
+  margin-right: 44px;
   text-transform: uppercase;
   letter-spacing: $tracking-eyebrow;
 }
@@ -104,8 +108,8 @@ onMounted(() => auth.loadUser())
 }
 
 .content {
-  @include container;
-  padding-block: $space-8 $space-20;
+  @include container(1520px);
+  padding-block: $space-6 $space-20;
 }
 
 @include from($bp-lg) {
@@ -119,7 +123,7 @@ onMounted(() => auth.loadUser())
   }
 
   .content {
-    padding-block: $space-10 $space-24;
+    padding-block: $space-8 $space-24;
   }
 }
 </style>

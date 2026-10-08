@@ -193,9 +193,12 @@ onMounted(load)
     <header class="page-header" data-admin-reveal>
       <div>
         <p class="eyebrow"><i class="fa-solid fa-building-columns" aria-hidden="true"></i> Métodos de pago</p>
-        <h1>Pagos por<br /><em>transferencia.</em></h1>
+        <h1>Pagos por transferencia</h1>
         <p>Carga las cuentas, actívalas o páusalas. El bot pregunta a qué banco prefiere el cliente y solo le envía esa cuenta.</p>
       </div>
+      <button type="button" class="add" :disabled="saving || loading" @click="openForm(null)">
+        <i class="fa-solid fa-plus" aria-hidden="true"></i> Agregar cuenta
+      </button>
     </header>
 
     <Transition name="fade">
@@ -208,6 +211,7 @@ onMounted(load)
 
     <template v-else>
       <section class="switch-card" :class="{ on: enabled }" data-admin-reveal>
+        <span class="switch-icon"><i :class="enabled ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-pause'" aria-hidden="true"></i></span>
         <div class="switch-copy">
           <strong>{{ enabled ? 'Transferencias activas' : 'Transferencias desactivadas' }}</strong>
           <span>
@@ -233,61 +237,86 @@ onMounted(load)
       </section>
 
       <section class="workspace" data-admin-reveal>
-        <div class="accounts-card">
-          <header>
-            <div><span>Cuentas de destino</span><h2>{{ accounts.length }} {{ accounts.length === 1 ? 'cuenta' : 'cuentas' }}</h2></div>
+        <div class="accounts">
+          <header class="section-head">
+            <h2>Cuentas de destino</h2>
+            <span class="count">{{ activeAccounts.length }} de {{ accounts.length }} activas</span>
+          </header>
+
+          <div v-if="!accounts.length" class="empty">
+            <i class="fa-solid fa-building-columns" aria-hidden="true"></i>
+            <p>Todavía no hay cuentas. Agrega la primera para activar las transferencias.</p>
             <button type="button" class="add" :disabled="saving" @click="openForm(null)">
               <i class="fa-solid fa-plus" aria-hidden="true"></i> Agregar cuenta
             </button>
-          </header>
+          </div>
 
-          <p v-if="!accounts.length" class="empty">Todavía no hay cuentas. Agrega la primera para activar las transferencias.</p>
+          <div v-else class="account-list">
+            <article v-for="(account, index) in accounts" :key="account.id || index" class="account" :class="{ paused: !account.active }">
+              <div class="account-top">
+                <span class="logo">
+                  <img v-if="account.logoUrl" :src="account.logoUrl" :alt="`Logo de ${account.bank}`" loading="lazy" />
+                  <i v-else class="fa-solid fa-building-columns" aria-hidden="true"></i>
+                </span>
+                <div class="account-title">
+                  <strong>{{ account.bank }}</strong>
+                  <span class="type">Cuenta {{ account.accountType || '—' }}</span>
+                </div>
+                <span class="state-badge" :class="{ on: account.active }">{{ account.active ? 'Activa' : 'Pausada' }}</span>
+              </div>
 
-          <article v-for="(account, index) in accounts" :key="account.id || index" class="account" :class="{ paused: !account.active }">
-            <span class="logo">
-              <img v-if="account.logoUrl" :src="account.logoUrl" :alt="`Logo de ${account.bank}`" loading="lazy" />
-              <i v-else class="fa-solid fa-building-columns" aria-hidden="true"></i>
-            </span>
-            <div class="account-copy">
-              <strong>{{ account.bank }}</strong>
-              <span class="mono">Cta. {{ account.accountType || '—' }} · {{ account.accountNumber }}</span>
-              <span>{{ account.accountHolder }}<template v-if="account.holderId"> · {{ account.holderId }}</template></span>
-            </div>
-            <div class="account-actions">
-              <button
-                type="button"
-                class="mini-switch"
-                role="switch"
-                :aria-checked="account.active"
-                :aria-label="`${account.active ? 'Pausar' : 'Activar'} ${account.bank}`"
-                :disabled="saving"
-                @click="toggleAccount(index)"
-              >
-                <span class="knob"></span>
-              </button>
-              <button type="button" class="icon" :aria-label="`Editar ${account.bank}`" :disabled="saving" @click="openForm(index)">
-                <i class="fa-solid fa-pen" aria-hidden="true"></i>
-              </button>
-              <button type="button" class="icon danger" :aria-label="`Eliminar ${account.bank}`" :disabled="saving" @click="removeAccount(index)">
-                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
-              </button>
-            </div>
-          </article>
+              <p class="number">{{ account.accountNumber }}</p>
+              <p class="holder">
+                <i class="fa-regular fa-user" aria-hidden="true"></i>
+                <span>{{ account.accountHolder }}<template v-if="account.holderId"> · {{ account.holderId }}</template></span>
+              </p>
+
+              <footer class="account-actions">
+                <label class="toggle-label">
+                  <button
+                    type="button"
+                    class="mini-switch"
+                    role="switch"
+                    :aria-checked="account.active"
+                    :aria-label="`${account.active ? 'Pausar' : 'Activar'} ${account.bank}`"
+                    :disabled="saving"
+                    @click="toggleAccount(index)"
+                  >
+                    <span class="knob"></span>
+                  </button>
+                  <span aria-hidden="true">{{ account.active ? 'El bot la ofrece' : 'No se ofrece' }}</span>
+                </label>
+                <div class="icons">
+                  <button type="button" class="icon" :aria-label="`Editar ${account.bank}`" title="Editar" :disabled="saving" @click="openForm(index)">
+                    <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                  </button>
+                  <button type="button" class="icon danger" :aria-label="`Eliminar ${account.bank}`" title="Eliminar" :disabled="saving" @click="removeAccount(index)">
+                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </footer>
+            </article>
+          </div>
         </div>
 
         <aside class="preview-card">
-          <header>
-            <div><span>Vista previa</span><h2>Lo que ve el cliente</h2></div>
-            <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+          <header class="preview-head">
+            <span class="wa-avatar"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></span>
+            <div>
+              <strong>Vista previa</strong>
+              <span>Lo que recibe el cliente por WhatsApp</span>
+            </div>
           </header>
-          <template v-if="activeAccounts.length">
-            <!-- eslint-disable-next-line vue/no-v-html -- texto escapado en bold() -->
-            <p v-if="previewQuestion" class="bubble" v-html="bold(previewQuestion)"></p>
-            <p v-if="previewQuestion" class="hint-line">Cuando elige, recibe solo esa cuenta:</p>
-            <!-- eslint-disable-next-line vue/no-v-html -- texto escapado en bold() -->
-            <p class="bubble" v-html="bold(previewAccount)"></p>
-          </template>
-          <p v-else class="hint-line">Activa al menos una cuenta para ver el mensaje.</p>
+          <div class="chat">
+            <template v-if="activeAccounts.length">
+              <!-- eslint-disable-next-line vue/no-v-html -- texto escapado en bold() -->
+              <p v-if="previewQuestion" class="bubble" v-html="bold(previewQuestion)"></p>
+              <p v-if="previewQuestion" class="hint-line">Cuando elige, recibe solo esa cuenta:</p>
+              <!-- eslint-disable-next-line vue/no-v-html -- texto escapado en bold() -->
+              <p class="bubble" v-html="bold(previewAccount)"></p>
+            </template>
+            <p v-else class="hint-line">Activa al menos una cuenta para ver el mensaje.</p>
+          </div>
           <p class="hint">
             <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
             El cliente envía la foto del comprobante y aparece en Pedidos como «Comprobante por revisar». El pago lo aprueba
@@ -384,43 +413,68 @@ onMounted(load)
   @include admin-notice;
 }
 
-.state,
-.empty {
-  padding-block: $space-8;
+.state {
+  padding-block: $space-10;
   color: $text-muted;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
   text-align: center;
 }
 
+.add {
+  @include button-primary;
+  align-self: flex-start;
+  flex: none;
+  box-shadow: none;
+}
+
+// ─── Interruptor general ────────────────────────────────────────────────────
 .switch-card {
+  @include admin-card($space-5);
   @include row($space-4);
-  justify-content: space-between;
-  padding: $space-5 $space-6;
-  border: 1px solid $border-subtle;
-  border-radius: $radius-lg;
-  background: $surface-card;
-  box-shadow: $shadow-sm;
+  border-left: 4px solid $key-300;
 
   &.on {
-    border-color: $success-500;
+    border-left-color: $ok;
+  }
+}
+
+.switch-icon {
+  display: none;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+  background: $surface-sunken;
+  color: $text-muted;
+  font-size: 1.25rem;
+
+  .on & {
+    background: $ok-wash;
+    color: $ok;
   }
 }
 
 .switch-copy {
-  @include stack($space-1);
+  @include stack(4px);
   min-width: 0;
+  flex: 1;
 
   strong {
-    font-size: $text-subheading;
+    color: $text-strong;
+    font-size: $admin-text-lg;
+    font-weight: $weight-bold;
   }
 
   span {
     color: $text-body;
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
+    line-height: $leading-body;
   }
 
   small {
-    @include mono-data($text-muted, $text-eyebrow);
+    @include mono-data($text-muted, $admin-text-xs);
   }
 }
 
@@ -434,7 +488,7 @@ onMounted(load)
   padding: 3px;
   border: 0;
   border-radius: $radius-pill;
-  background: $key-300;
+  background: $key-200;
   cursor: pointer;
   transition: background $duration-base $ease-out;
   @include focus-ring;
@@ -449,7 +503,7 @@ onMounted(load)
   }
 
   &[aria-checked='true'] {
-    background: $success-500;
+    background: $ok;
 
     .knob {
       transform: translateX($width - $height);
@@ -475,74 +529,97 @@ onMounted(load)
 }
 
 .mini-switch {
-  @include toggle(40px, 24px);
+  @include toggle(42px, 24px);
 }
 
+// ─── Cuentas ────────────────────────────────────────────────────────────────
 .workspace {
-  @include stack($space-5);
+  @include stack($space-6);
 }
 
-.accounts-card,
-.preview-card {
-  overflow: hidden;
-  border: 1px solid $border-subtle;
-  border-radius: $radius-lg;
-  background: $surface-card;
-  box-shadow: $shadow-sm;
+.accounts {
+  @include stack($space-3);
+  min-width: 0;
 }
 
-.accounts-card > header,
-.preview-card > header {
+.section-head {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
-  gap: $space-3;
-
-  span {
-    @include eyebrow;
-  }
+  gap: $space-2;
 
   h2 {
-    margin-top: 2px;
-    font-size: $text-subheading;
+    color: $text-strong;
+    font-size: $admin-text-lg;
+    font-weight: $weight-bold;
+  }
+
+  .count {
+    @include mono-data($text-muted, $admin-text-xs);
   }
 }
 
-.accounts-card > header {
-  padding: $space-5 $space-6;
-  border-bottom: 1px solid $border-subtle;
+.empty {
+  @include admin-card($space-10 $space-5);
+  @include stack($space-3);
+  align-items: center;
+  color: $text-body;
+  font-size: $admin-text-md;
+  text-align: center;
+
+  > i {
+    color: $cyan;
+    font-size: 1.75rem;
+  }
 }
 
-.add {
-  @include button-primary;
-  padding: $space-2 $space-4;
-  font-size: $text-caption;
+.account-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-3;
 }
 
 .account {
-  @include row($space-3);
-  padding: $space-4 $space-6;
-  border-bottom: 1px solid $border-subtle;
+  @include admin-card($space-5);
+  @include stack($space-3);
+  flex: 1 1 280px;
+  min-width: 0;
+  transition: border-color $duration-base $ease-out, box-shadow $duration-base $ease-out, opacity $duration-base $ease-out;
 
-  &:last-child {
-    border-bottom: 0;
+  @media (hover: hover) {
+    &:hover {
+      border-color: $border-strong;
+      box-shadow: $shadow-sm;
+    }
   }
 
   &.paused {
-    opacity: 0.55;
+    background: $surface-page;
+
+    .logo,
+    .account-title,
+    .number,
+    .holder {
+      opacity: 0.55;
+    }
   }
+}
+
+.account-top {
+  @include row($space-3);
 }
 
 .logo {
   display: flex;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   flex: none;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   border: 1px solid $border-subtle;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
   background: $paper-white;
   color: $text-muted;
 
@@ -553,41 +630,91 @@ onMounted(load)
   }
 
   &.small {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
 
     img {
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
     }
   }
 }
 
-.account-copy {
+.account-title {
   @include stack(2px);
   min-width: 0;
   flex: 1;
-  font-size: $text-caption;
-  color: $text-body;
 
   strong {
+    @include truncate;
     color: $text-strong;
-    font-size: $text-body-sm;
+    font-size: $admin-text-base;
+    font-weight: $weight-bold;
   }
 
-  .mono {
-    @include mono-data($text-strong, $text-caption);
+  .type {
+    color: $text-body;
+    font-size: $admin-text-sm;
+  }
+}
+
+.state-badge {
+  @include admin-badge($text-muted, $surface-sunken);
+  flex: none;
+
+  &.on {
+    background: $ok-wash;
+    color: $ok;
+  }
+}
+
+.number {
+  @include mono-data($text-strong, 1.25rem);
+  font-weight: $weight-medium;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+
+.holder {
+  @include row($space-2, flex-start);
+  color: $text-body;
+  font-size: $admin-text-sm;
+
+  i {
+    margin-top: 3px;
+    color: $text-muted;
   }
 }
 
 .account-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-2;
+  margin-top: $space-1;
+  padding-top: $space-3;
+  border-top: 1px solid $border-subtle;
+}
+
+.toggle-label {
+  @include row($space-2);
+  color: $text-body;
+  font-size: $admin-text-sm;
+}
+
+.icons {
   @include row($space-1);
-  flex: none;
 }
 
 .icon {
   @include button-ghost($text-muted);
-  padding: $space-2;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+
+  &:hover:not(:disabled) {
+    color: $text-strong;
+  }
 
   &.danger:hover:not(:disabled) {
     background: $danger-100;
@@ -595,48 +722,90 @@ onMounted(load)
   }
 }
 
+// ─── Vista previa ───────────────────────────────────────────────────────────
 .preview-card {
-  @include stack($space-3);
-  padding: $space-6;
+  @include admin-card(0);
+  overflow: hidden;
+}
 
-  > header > i {
-    color: $whatsapp;
-    font-size: 1.35rem;
+.preview-head {
+  @include row($space-3);
+  padding: $space-4 $space-5;
+  background: #075e54;
+  color: $paper-white;
+
+  div {
+    @include stack(2px);
   }
+
+  strong {
+    font-size: $admin-text-md;
+  }
+
+  span {
+    color: rgba(255, 255, 255, 0.78);
+    font-size: $admin-text-xs;
+  }
+}
+
+.wa-avatar {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 1.15rem;
+}
+
+.chat {
+  @include stack($space-3);
+  padding: $space-5;
+  background: #efeae2;
 }
 
 .bubble {
   align-self: flex-start;
-  max-width: 100%;
+  max-width: 92%;
   padding: $space-3 $space-4;
-  border-radius: $radius-md $radius-md $radius-md $radius-xs;
-  background: rgba($whatsapp, 0.16);
+  border-radius: $radius-xs $radius-md $radius-md $radius-md;
+  background: $paper-white;
+  box-shadow: 0 1px 1px rgba(12, 12, 14, 0.12);
   color: $key-900;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
   line-height: $leading-body;
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
 
 .hint-line {
-  color: $text-muted;
-  font-size: $text-caption;
+  align-self: center;
+  padding: 4px 10px;
+  border-radius: $radius-sm;
+  background: rgba(255, 255, 255, 0.7);
+  color: $text-body;
+  font-size: $admin-text-xs;
+  text-align: center;
 }
 
 .hint {
   @include row($space-2, flex-start);
-  color: $text-muted;
-  font-size: $text-caption;
+  padding: $space-4 $space-5;
+  color: $text-body;
+  font-size: $admin-text-sm;
   line-height: $leading-body;
 
   i {
     margin-top: 3px;
-    color: $brand-500;
+    color: $cyan-deep;
   }
 }
 
+// ─── Formulario de cuenta ───────────────────────────────────────────────────
 .account-form {
-  @include stack($space-4);
+  @include stack($space-5);
 }
 
 .field {
@@ -656,23 +825,31 @@ onMounted(load)
 .bank-option {
   @include row($space-2);
   position: relative;
-  flex: 1 1 150px;
+  flex: 1 1 170px;
+  min-height: 48px;
   padding: $space-2 $space-3;
   border: 1px solid $border-strong;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
+  background: $surface-card;
   color: $text-body;
-  font-size: $text-caption;
+  font-size: $admin-text-md;
   cursor: pointer;
+  transition: border-color $duration-base $ease-out, background $duration-base $ease-out;
 
   img {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     object-fit: contain;
+  }
+
+  &:hover {
+    border-color: $cyan-soft;
   }
 
   &.active {
     border-color: $cyan;
-    background: $brand-100;
+    background: $cyan-wash;
+    box-shadow: inset 0 0 0 1px $cyan;
     color: $text-strong;
     font-weight: $weight-semibold;
   }
@@ -691,17 +868,23 @@ onMounted(load)
 .choice {
   position: relative;
   flex: 1;
+  min-height: 48px;
   padding: $space-3;
   border: 1px solid $border-strong;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
   color: $text-body;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
   text-align: center;
   cursor: pointer;
 
+  &:hover {
+    border-color: $cyan-soft;
+  }
+
   &.active {
     border-color: $cyan;
-    background: $brand-100;
+    background: $cyan-wash;
+    box-shadow: inset 0 0 0 1px $cyan;
     color: $text-strong;
     font-weight: $weight-semibold;
   }
@@ -729,19 +912,26 @@ onMounted(load)
   @include button-primary;
 }
 
-@include from($bp-md) {
+@include from($bp-sm) {
+  .switch-icon {
+    display: flex;
+  }
+}
+
+@include from($bp-lg) {
   .workspace {
     flex-direction: row;
     align-items: flex-start;
   }
 
-  .accounts-card {
+  .accounts {
     flex: 1;
-    min-width: 0;
   }
 
   .preview-card {
-    width: 38%;
+    position: sticky;
+    top: $space-6;
+    width: 360px;
     flex: none;
   }
 }

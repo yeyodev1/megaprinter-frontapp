@@ -10,6 +10,17 @@ const preview = (item: BotConversationSummary) => {
   const who = item.lastMessage.role === 'user' ? '' : 'Bot: '
   return `${who}${item.lastMessage.hasMedia && item.lastMessage.content.startsWith('[') ? '📎 Archivo' : item.lastMessage.content}`
 }
+
+const initials = (item: BotConversationSummary) =>
+  item.customerName
+    ? item.customerName
+        .split(' ')
+        .map((part) => part[0])
+        .filter(Boolean)
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : ''
 </script>
 
 <template>
@@ -29,7 +40,10 @@ const preview = (item: BotConversationSummary) => {
       :aria-current="item.phone === selected"
       @click="emit('select', item.phone)"
     >
-      <span class="avatar" aria-hidden="true"><i class="fa-brands fa-whatsapp"></i></span>
+      <span class="avatar" :class="{ human: item.withHuman }" aria-hidden="true">
+        <template v-if="initials(item)">{{ initials(item) }}</template>
+        <i v-else class="fa-brands fa-whatsapp"></i>
+      </span>
       <span class="copy">
         <span class="top">
           <strong>{{ item.customerName || item.phone }}</strong>
@@ -60,12 +74,12 @@ const preview = (item: BotConversationSummary) => {
   align-items: center;
   padding: $space-10 $space-4;
   color: $text-muted;
-  font-size: $text-body-sm;
+  font-size: $admin-text-md;
   text-align: center;
 
   i {
     color: $whatsapp;
-    font-size: 1.5rem;
+    font-size: 1.75rem;
   }
 }
 
@@ -82,30 +96,43 @@ const preview = (item: BotConversationSummary) => {
   transition: background $duration-fast $ease-out;
   @include focus-ring;
 
-  &:hover {
-    background: $surface-sunken;
+  @media (hover: hover) {
+    &:hover {
+      background: $surface-page;
+    }
   }
 
   &.active {
-    background: $brand-100;
+    background: $cyan-wash;
     box-shadow: inset 3px 0 0 $cyan;
   }
 }
 
 .avatar {
   display: flex;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   flex: none;
   align-items: center;
   justify-content: center;
   border-radius: $radius-pill;
   background: rgba($whatsapp, 0.16);
-  color: $whatsapp;
+  color: #0d7a3c;
+  font-size: $admin-text-sm;
+  font-weight: $weight-bold;
+
+  i {
+    font-size: 1.125rem;
+  }
+
+  &.human {
+    background: $yellow-wash;
+    color: $yellow-deep;
+  }
 }
 
 .copy {
-  @include stack($space-1);
+  @include stack(6px);
   min-width: 0;
   flex: 1;
 }
@@ -118,38 +145,39 @@ const preview = (item: BotConversationSummary) => {
 
   strong {
     @include truncate;
-    font-size: $text-body-sm;
+    color: $text-strong;
+    font-size: $admin-text-base;
+    font-weight: $weight-bold;
   }
 
   time {
-    @include mono-data($text-muted, $text-eyebrow);
     flex: none;
+    color: $text-muted;
+    font-size: $admin-text-xs;
+    font-variant-numeric: tabular-nums;
   }
 }
 
 .preview {
   @include truncate;
   color: $text-body;
-  font-size: $text-caption;
+  font-size: $admin-text-md;
 }
 
 .tags {
   display: flex;
   flex-wrap: wrap;
-  gap: $space-1;
+  gap: 6px;
 }
 
 .tag {
-  @include row(4px);
-  padding: 2px $space-2;
-  border-radius: $radius-xs;
-  background: $surface-sunken;
-  color: $text-body;
-  font-size: 0.6875rem;
+  @include admin-badge;
+  padding: 2px 8px;
+  font-weight: $weight-medium;
 
   &.stage {
-    background: $brand-100;
-    color: $brand-700;
+    background: $cyan-wash;
+    color: $cyan-dark;
   }
 
   &.ok {
@@ -159,8 +187,8 @@ const preview = (item: BotConversationSummary) => {
   }
 
   &.warn {
-    background: $warning-100;
-    color: $text-strong;
+    background: $yellow-wash;
+    color: $yellow-deep;
   }
 
   &.danger {

@@ -83,7 +83,7 @@ defineExpose({ uploading })
 
   small {
     color: $text-muted;
-    font-size: 0.6875rem;
+    font-size: $admin-text-xs;
   }
 }
 
@@ -113,12 +113,12 @@ defineExpose({ uploading })
   }
 
   strong {
-    font-size: $text-body-sm;
+    font-size: $admin-text-md;
   }
 
   small {
     color: $text-muted;
-    font-size: $text-eyebrow;
+    font-size: $admin-text-xs;
   }
 
   &:hover,
@@ -135,7 +135,7 @@ defineExpose({ uploading })
 
 .upload-error {
   color: $danger-500;
-  font-size: $text-caption;
+  font-size: $admin-text-sm;
 }
 
 .image-preview {
