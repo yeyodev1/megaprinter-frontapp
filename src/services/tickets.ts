@@ -1,7 +1,9 @@
 import { http } from '@/services/http'
 
 export type TicketType = 'servicio_tecnico' | 'suministros'
-export type TicketStatus = 'nuevo' | 'en_revision' | 'cotizado' | 'en_reparacion' | 'listo' | 'entregado' | 'cancelado'
+export type TicketStatus = 'atencion' | 'nuevo' | 'en_revision' | 'cotizado' | 'en_reparacion' | 'listo' | 'entregado' | 'cancelado'
+
+export type TicketClassification = 'servicio_tecnico' | 'suministros' | 'compra' | 'seguimiento' | 'no_claro' | ''
 
 export interface ServiceTicket {
   _id: string
@@ -18,6 +20,14 @@ export interface ServiceTicket {
   priceMin: number | null
   priceMax: number | null
   priceSource: 'catalogo' | 'referencial' | 'por_cotizar'
+  summary?: {
+    text: string
+    wants: string
+    classification: TicketClassification
+    needsAttention: boolean
+    reason: string
+    at: string | null
+  }
   finalPrice: number | null
   assignedTo: string
   notes: Array<{ text: string; by: string; at: string }>
@@ -33,7 +43,19 @@ export const updateTicket = async (
   data: Partial<{ status: TicketStatus; note: string; finalPrice: number | null; assignedTo: string }>,
 ) => (await http.patch<ServiceTicket>(`/tickets/${id}`, data)).data
 
+/** Pide a la IA el resumen de qué busca y qué quiere el cliente. */
+export const summarizeTicket = async (id: string) => (await http.post<ServiceTicket>(`/tickets/${id}/summary`, {}, { timeout: 30000 })).data
+
+export const CLASSIFICATION_LABEL: Record<string, string> = {
+  servicio_tecnico: '🛠️ Servicio técnico',
+  suministros: '🧴 Suministros',
+  compra: '🛒 Quiere comprar',
+  seguimiento: '🔁 Seguimiento',
+  no_claro: '❓ Sin clasificar',
+}
+
 export const TICKET_STATUSES: Array<{ value: TicketStatus; label: string; icon: string }> = [
+  { value: 'atencion', label: 'Necesita atención', icon: 'fa-solid fa-triangle-exclamation' },
   { value: 'nuevo', label: 'Nuevo', icon: 'fa-solid fa-inbox' },
   { value: 'en_revision', label: 'En revisión', icon: 'fa-solid fa-magnifying-glass' },
   { value: 'cotizado', label: 'Cotizado', icon: 'fa-solid fa-file-invoice-dollar' },

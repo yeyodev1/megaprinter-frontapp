@@ -3,9 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppModal from '@/components/ui/AppModal.vue'
 import {
+  CLASSIFICATION_LABEL,
   DEVICE_LABEL,
   TICKET_STATUSES,
   listTickets,
+  summarizeTicket,
   ticketStatusMeta,
   updateTicket,
   type ServiceTicket,
@@ -17,8 +19,10 @@ import { useAdminEntrance } from '@/composables/useAdminEntrance'
 import { formatDate } from '@/components/admin/orderHelpers'
 
 /**
- * Tickets de servicio técnico y suministros que crea Mila por WhatsApp. Los
- * atiende una persona: estado, precio final, técnico asignado y notas.
+ * Tickets de servicio técnico y suministros que crea Mila por WhatsApp, en un
+ * tablero de izquierda a derecha por estado: se ve a quién se está atendiendo y
+ * en qué va. La IA resume qué busca y qué quiere el cliente; lo que no sabe
+ * clasificar cae en "Necesita atención".
  */
 
 useAdminEntrance()
@@ -30,31 +34,51 @@ const loading = ref(true)
 const saving = ref(false)
 const notice = ref('')
 const search = ref('')
-const statusFilter = ref<TicketStatus | 'abiertos' | 'todos'>('abiertos')
+const showClosed = ref(false)
+const summarizing = ref(false)
+const dragging = ref<string | null>(null)
+const dropTarget = ref<TicketStatus | null>(null)
 const typeFilter = ref<'todos' | 'servicio_tecnico' | 'suministros'>('todos')
 const selected = ref<ServiceTicket | null>(null)
 const note = ref('')
 const finalPrice = ref('')
 const assignedTo = ref('')
 
-const OPEN: TicketStatus[] = ['nuevo', 'en_revision', 'cotizado', 'en_reparacion', 'listo']
-
-const counts = computed(() => {
-  const result: Record<string, number> = {}
-  for (const ticket of tickets.value) result[ticket.status] = (result[ticket.status] ?? 0) + 1
-  return result
-})
+const columns = computed(() =>
+  TICKET_STATUSES.filter((meta) => showClosed.value || (meta.value !== 'cancelado' && meta.value !== 'entregado')),
+)
 
 const visible = computed(() => {
   const query = search.value.trim().toLowerCase()
   return tickets.value.filter((ticket) => {
-    if (statusFilter.value === 'abiertos' && !OPEN.includes(ticket.status)) return false
-    if (statusFilter.value !== 'abiertos' && statusFilter.value !== 'todos' && ticket.status !== statusFilter.value) return false
     if (typeFilter.value !== 'todos' && ticket.type !== typeFilter.value) return false
     if (!query) return true
-    return [ticket.ticketNumber, ticket.customerName, ticket.customerPhone, ticket.issue, ticket.device].join(' ').toLowerCase().includes(query)
+    return [ticket.ticketNumber, ticket.customerName, ticket.customerPhone, ticket.issue, ticket.device, ticket.assignedTo, ticket.summary?.text, ticket.summary?.wants]
+      .join(' ')
+      .toLowerCase()
+      .includes(query)
   })
 })
+
+// El más antiguo arriba: se atiende en el orden en que llegaron.
+const byStatus = computed(() => {
+  const result: Record<string, ServiceTicket[]> = {}
+  for (const ticket of visible.value) (result[ticket.status] ??= []).push(ticket)
+  for (const list of Object.values(result)) list.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return result
+})
+
+const closedCount = computed(() => tickets.value.filter((ticket) => ticket.status === 'cancelado' || ticket.status === 'entregado').length)
+
+const headline = (ticket: ServiceTicket) =>
+  ticket.summary?.wants || `${ticket.type === 'servicio_tecnico' ? `${DEVICE_LABEL[ticket.device] ?? ticket.device} · ` : ''}${ticket.issue}`
+
+const waitingFor = (iso: string) => {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (minutes < 60) return `hace ${minutes} min`
+  const hours = Math.round(minutes / 60)
+  return hours < 24 ? `hace ${hours} h` : `hace ${Math.round(hours / 24)} d`
+}
 
 const price = (ticket: ServiceTicket) =>
   ticket.finalPrice != null
@@ -89,11 +113,27 @@ const load = async (quiet = false) => {
   }
 }
 
+const summarize = async (quiet = false) => {
+  if (!selected.value || summarizing.value) return
+  summarizing.value = true
+  try {
+    const updated = await summarizeTicket(selected.value._id)
+    tickets.value = tickets.value.map((ticket) => (ticket._id === updated._id ? updated : ticket))
+    if (selected.value?._id === updated._id) selected.value = updated
+  } catch (caught) {
+    if (!quiet) await dialog.notify({ title: 'No se pudo resumir', message: errorMessage(caught, 'Intenta de nuevo.'), tone: 'danger' })
+  } finally {
+    summarizing.value = false
+  }
+}
+
 const openTicket = (ticket: ServiceTicket) => {
   selected.value = ticket
   note.value = ''
   finalPrice.value = ticket.finalPrice != null ? String(ticket.finalPrice) : ''
   assignedTo.value = ticket.assignedTo
+  // Tickets de antes del resumen, o si la IA no alcanzó al crearlo.
+  if (!ticket.summary?.at) void summarize(true)
 }
 
 const save = async (data: Parameters<typeof updateTicket>[1], message: string) => {
@@ -112,6 +152,25 @@ const save = async (data: Parameters<typeof updateTicket>[1], message: string) =
 }
 
 const changeStatus = (status: TicketStatus) => save({ status }, `${selected.value?.ticketNumber} ahora está «${ticketStatusMeta(status).label}».`)
+
+// Arrastrar una tarjeta a otra columna cambia su estado.
+const onDrop = async (status: TicketStatus) => {
+  const id = dragging.value
+  dragging.value = null
+  dropTarget.value = null
+  const ticket = tickets.value.find((item) => item._id === id)
+  if (!ticket || ticket.status === status) return
+  const previous = ticket.status
+  tickets.value = tickets.value.map((item) => (item._id === id ? { ...item, status } : item))
+  try {
+    const updated = await updateTicket(ticket._id, { status })
+    tickets.value = tickets.value.map((item) => (item._id === updated._id ? updated : item))
+    flash(`${ticket.ticketNumber} ahora está «${ticketStatusMeta(status).label}».`)
+  } catch (caught) {
+    tickets.value = tickets.value.map((item) => (item._id === id ? { ...item, status: previous } : item))
+    await dialog.notify({ title: 'No se pudo mover', message: errorMessage(caught, 'Intenta de nuevo.'), tone: 'danger' })
+  }
+}
 
 const saveDetails = async () => {
   const value = finalPrice.value.trim()
@@ -158,43 +217,68 @@ onBeforeUnmount(() => clearInterval(timer))
     </Transition>
 
     <section class="filters" data-admin-reveal aria-label="Filtrar tickets">
-      <div class="chips">
-        <button type="button" :class="{ active: statusFilter === 'abiertos' }" @click="statusFilter = 'abiertos'">
-          Abiertos <strong>{{ tickets.filter((ticket) => OPEN.includes(ticket.status)).length }}</strong>
+      <label class="search">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        <span class="visually-hidden">Buscar ticket</span>
+        <input v-model="search" type="search" placeholder="ST-, cliente, teléfono, problema o asesor" />
+      </label>
+      <div class="types" role="group" aria-label="Tipo">
+        <button type="button" :class="{ active: typeFilter === 'todos' }" @click="typeFilter = 'todos'">Todo</button>
+        <button type="button" :class="{ active: typeFilter === 'servicio_tecnico' }" @click="typeFilter = 'servicio_tecnico'">🛠️ Servicio</button>
+        <button type="button" :class="{ active: typeFilter === 'suministros' }" @click="typeFilter = 'suministros'">🧴 Suministros</button>
+        <button type="button" :class="{ active: showClosed }" @click="showClosed = !showClosed">
+          <i class="fa-solid fa-box-archive" aria-hidden="true"></i> Entregados y cancelados <strong>{{ closedCount }}</strong>
         </button>
-        <button v-for="meta in TICKET_STATUSES" :key="meta.value" type="button" :class="{ active: statusFilter === meta.value }" @click="statusFilter = meta.value">
-          <i :class="meta.icon" aria-hidden="true"></i> {{ meta.label }} <strong>{{ counts[meta.value] ?? 0 }}</strong>
-        </button>
-        <button type="button" :class="{ active: statusFilter === 'todos' }" @click="statusFilter = 'todos'">Todos</button>
-      </div>
-      <div class="row">
-        <label class="search">
-          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-          <span class="visually-hidden">Buscar ticket</span>
-          <input v-model="search" type="search" placeholder="ST-, cliente, teléfono o problema" />
-        </label>
-        <div class="types" role="group" aria-label="Tipo">
-          <button type="button" :class="{ active: typeFilter === 'todos' }" @click="typeFilter = 'todos'">Todo</button>
-          <button type="button" :class="{ active: typeFilter === 'servicio_tecnico' }" @click="typeFilter = 'servicio_tecnico'">🛠️ Servicio</button>
-          <button type="button" :class="{ active: typeFilter === 'suministros' }" @click="typeFilter = 'suministros'">🧴 Suministros</button>
-        </div>
       </div>
     </section>
 
-    <section class="list" data-admin-reveal>
-      <p v-if="loading" class="state">Cargando tickets…</p>
-      <p v-else-if="!visible.length" class="state">No hay tickets con este filtro.</p>
-      <button v-for="ticket in visible" :key="ticket._id" type="button" class="ticket" @click="openTicket(ticket)">
-        <span class="type">{{ ticket.type === 'suministros' ? '🧴' : '🛠️' }}</span>
-        <span class="copy">
-          <span class="top">
-            <strong>{{ ticket.ticketNumber }} · {{ ticket.customerName || ticket.customerPhone }}</strong>
-            <span class="badge" :class="ticket.status"><i :class="ticketStatusMeta(ticket.status).icon" aria-hidden="true"></i>{{ ticketStatusMeta(ticket.status).label }}</span>
-          </span>
-          <span class="issue">{{ ticket.type === 'servicio_tecnico' ? `${DEVICE_LABEL[ticket.device] ?? ticket.device} · ` : '' }}{{ ticket.issue }}</span>
-          <span class="meta">{{ price(ticket) }} · {{ formatDate(ticket.createdAt) }}<template v-if="ticket.assignedTo"> · 👤 {{ ticket.assignedTo }}</template></span>
-        </span>
-      </button>
+    <p v-if="loading && !tickets.length" class="state" data-admin-reveal>Cargando tickets…</p>
+    <section v-else class="board" data-admin-reveal aria-label="Tablero de tickets">
+      <div
+        v-for="column in columns"
+        :key="column.value"
+        class="column"
+        :class="[column.value, { over: dropTarget === column.value }]"
+        @dragover.prevent="dropTarget = column.value"
+        @dragleave="dropTarget === column.value && (dropTarget = null)"
+        @drop.prevent="onDrop(column.value)"
+      >
+        <header class="column-head">
+          <span><i :class="column.icon" aria-hidden="true"></i> {{ column.label }}</span>
+          <strong>{{ byStatus[column.value]?.length ?? 0 }}</strong>
+        </header>
+        <p v-if="column.value === 'atencion'" class="column-hint">Lo que la IA no supo clasificar o pide revisión.</p>
+        <div class="cards">
+          <button
+            v-for="ticket in byStatus[column.value] ?? []"
+            :key="ticket._id"
+            type="button"
+            class="card"
+            :class="{ dragging: dragging === ticket._id }"
+            draggable="true"
+            @dragstart="dragging = ticket._id"
+            @dragend="dragging = null; dropTarget = null"
+            @click="openTicket(ticket)"
+          >
+            <span class="card-top">
+              <span class="number">{{ ticket.type === 'suministros' ? '🧴' : '🛠️' }} {{ ticket.ticketNumber }}</span>
+              <time :datetime="ticket.createdAt">{{ waitingFor(ticket.createdAt) }}</time>
+            </span>
+            <strong class="customer">{{ ticket.customerName || ticket.customerPhone }}</strong>
+            <span class="want">{{ headline(ticket) }}</span>
+            <span v-if="ticket.summary?.needsAttention && ticket.summary.reason" class="reason">
+              <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{ ticket.summary.reason }}
+            </span>
+            <span class="card-foot">
+              <span class="assignee" :class="{ empty: !ticket.assignedTo }">
+                <i class="fa-solid fa-user" aria-hidden="true"></i> {{ ticket.assignedTo || 'Sin asignar' }}
+              </span>
+              <span class="price">{{ price(ticket) }}</span>
+            </span>
+          </button>
+          <p v-if="!byStatus[column.value]?.length" class="empty-col">Sin tickets</p>
+        </div>
+      </div>
     </section>
 
     <AppModal
@@ -211,6 +295,22 @@ onBeforeUnmount(() => clearInterval(timer))
           <div v-if="selected.type === 'servicio_tecnico'"><span>Equipo</span><strong>{{ DEVICE_LABEL[selected.device] ?? selected.device }}</strong></div>
           <div><span>Precio sugerido</span><strong>{{ selected.priceMin != null ? `$${selected.priceMin} – $${selected.priceMax}` : 'Por cotizar' }}</strong><small v-if="selected.category">{{ selected.category }} · {{ selected.priceSource }}</small></div>
         </div>
+        <section class="summary" :class="{ attention: selected.summary?.needsAttention }" aria-live="polite">
+          <header>
+            <p class="eyebrow"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Resumen</p>
+            <span v-if="selected.summary?.classification" class="chip">{{ CLASSIFICATION_LABEL[selected.summary.classification] ?? selected.summary.classification }}</span>
+            <button type="button" class="regen" :disabled="summarizing" @click="summarize()">
+              <i :class="summarizing ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-rotate'" aria-hidden="true"></i>
+              {{ selected.summary?.at ? 'Regenerar' : 'Resumir' }}
+            </button>
+          </header>
+          <template v-if="selected.summary?.at">
+            <p><strong>Qué busca:</strong> {{ selected.summary.text }}</p>
+            <p v-if="selected.summary.wants"><strong>Qué quiere:</strong> {{ selected.summary.wants }}</p>
+            <p v-if="selected.summary.needsAttention" class="reason"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{ selected.summary.reason }}</p>
+          </template>
+          <p v-else class="muted">{{ summarizing ? 'Leyendo la conversación…' : 'Aún no hay resumen.' }}</p>
+        </section>
         <p class="issue-box"><strong>Lo que contó:</strong> {{ selected.issue }}</p>
 
         <div class="links">
@@ -295,7 +395,6 @@ onBeforeUnmount(() => clearInterval(timer))
   @include stack($space-3);
 }
 
-.chips,
 .types {
   display: flex;
   flex-wrap: wrap;
@@ -325,9 +424,10 @@ onBeforeUnmount(() => clearInterval(timer))
   }
 }
 
-.row {
+.filters {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: $space-3;
 }
 
@@ -336,96 +436,184 @@ onBeforeUnmount(() => clearInterval(timer))
   flex: 1 1 260px;
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid $border-subtle;
-  border-radius: $radius-lg;
-  background: $surface-card;
-  box-shadow: $shadow-sm;
-}
-
 .state {
   padding: $space-10;
   color: $text-muted;
   text-align: center;
 }
 
-.ticket {
-  @include row($space-3, flex-start);
+// Tablero: columnas de izquierda a derecha; en el celular se desliza de lado.
+.board {
+  display: flex;
+  gap: $space-3;
+  overflow-x: auto;
+  padding-bottom: $space-3;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+}
+
+.column {
+  @include stack($space-2);
+  flex: 0 0 min(84vw, 290px);
+  padding: $space-3;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  background: $surface-sunken;
+  scroll-snap-align: start;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+
+  &.over {
+    border-color: $cyan;
+    background: $brand-100;
+  }
+
+  &.atencion {
+    border-color: $warning-500;
+    background: $warning-100;
+  }
+}
+
+.column-head {
+  @include row($space-2);
+  justify-content: space-between;
+  font-size: $text-caption;
+  font-weight: $weight-semibold;
+  color: $text-strong;
+
+  strong {
+    @include mono-data($text-muted, $text-eyebrow);
+  }
+}
+
+.column-hint {
+  color: $warning-500;
+  font-size: $text-eyebrow;
+}
+
+.cards {
+  @include stack($space-2);
+  min-height: 80px;
+}
+
+.empty-col {
+  padding: $space-4 0;
+  color: $text-muted;
+  font-size: $text-eyebrow;
+  text-align: center;
+}
+
+.card {
+  @include stack(6px);
   width: 100%;
-  padding: $space-4 $space-5;
-  border: 0;
-  border-bottom: 1px solid $border-subtle;
-  background: transparent;
+  padding: $space-3;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-sm;
+  background: $surface-card;
+  box-shadow: $shadow-sm;
   color: inherit;
   text-align: left;
-  cursor: pointer;
+  cursor: grab;
   @include focus-ring;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 
   &:hover {
-    background: $surface-sunken;
+    border-color: $cyan;
   }
 
-  .type {
-    font-size: 1.4rem;
+  &:active {
+    cursor: grabbing;
+  }
+
+  &.dragging {
+    opacity: 0.5;
   }
 }
 
-.copy {
-  @include stack(4px);
-  min-width: 0;
-  flex: 1;
-}
-
-.top {
+.card-top,
+.card-foot {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: $space-2;
-
-  strong {
-    font-size: $text-body-sm;
-  }
 }
 
-.issue {
-  color: $text-body;
-  font-size: $text-caption;
-  overflow-wrap: anywhere;
-}
-
-.meta {
+.number,
+.card-top time,
+.price {
   @include mono-data($text-muted, $text-eyebrow);
 }
 
-.badge {
-  @include badge;
+.customer {
+  font-size: $text-body-sm;
+  color: $text-strong;
+}
 
-  &.nuevo {
+.want {
+  color: $text-body;
+  font-size: $text-caption;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.reason {
+  color: $warning-500;
+  font-size: $text-eyebrow;
+}
+
+.assignee {
+  @include row(4px);
+  font-size: $text-eyebrow;
+  font-weight: $weight-semibold;
+  color: $cyan-dark;
+
+  &.empty {
+    color: $text-muted;
+    font-weight: normal;
+  }
+}
+
+.summary {
+  @include stack($space-2);
+  padding: $space-3 $space-4;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-sm;
+  background: $surface-card;
+  font-size: $text-body-sm;
+  overflow-wrap: anywhere;
+
+  &.attention {
+    border-color: $warning-500;
     background: $warning-100;
-    color: $warning-500;
   }
 
-  &.en_reparacion,
-  &.cotizado,
-  &.en_revision {
-    background: $brand-100;
-    color: $cyan-dark;
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: $space-2;
+
+    .eyebrow {
+      flex: 1;
+    }
   }
 
-  &.listo,
-  &.entregado {
-    background: $success-100;
-    color: $success-500;
+  .chip {
+    @include badge;
   }
 
-  &.cancelado {
-    background: $danger-100;
-    color: $danger-500;
+  .muted {
+    color: $text-muted;
   }
+}
+
+.regen {
+  @include button-secondary;
+  padding: $space-1 $space-3;
+  font-size: $text-eyebrow;
 }
 
 .detail {
@@ -499,9 +687,13 @@ onBeforeUnmount(() => clearInterval(timer))
   }
 }
 
+// .block es columna: sin flex-direction: row el flex-basis de cada campo se
+// volvía altura y quedaban huecos enormes entre campos.
 .form {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: $space-3;
 
   .eyebrow {
