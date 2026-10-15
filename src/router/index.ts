@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import { getAdminToken } from '@/services/http'
+import { getAdminToken, getTokenRole } from '@/services/http'
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -85,7 +85,8 @@ const routes: Array<RouteRecordRaw> = [
         path: 'tickets',
         name: 'AdminTickets',
         component: () => import('../views/TicketsAdminView.vue'),
-        meta: { title: 'Servicio técnico' },
+        // Única sección que ve el técnico.
+        meta: { title: 'Servicio técnico', allowTecnico: true },
       },
       {
         path: 'catalog',
@@ -111,6 +112,12 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('../views/UsersAdminView.vue'),
         meta: { title: 'Usuarios internos' },
       },
+      {
+        path: 'tecnicos',
+        name: 'AdminTechnicians',
+        component: () => import('../views/TechniciansAdminView.vue'),
+        meta: { title: 'Técnicos' },
+      },
     ],
   },
   {
@@ -132,14 +139,21 @@ const router = createRouter({
   },
 })
 
+/** Inicio del panel según el rol: el técnico va directo a sus tickets. */
+export const panelHome = () => (getTokenRole() === 'tecnico' ? { name: 'AdminTickets' } : { name: 'AdminDashboard' })
+
 router.beforeEach((to) => {
   if (to.matched.some((record) => record.meta.requiresAdmin) && !getAdminToken()) {
     // `redirect` permite volver a la pagina pedida despues de iniciar sesion.
     return { name: 'Login', query: { redirect: to.fullPath } }
   }
+  // El técnico solo entra al tablero de tickets; el backend igual rechaza el resto.
+  if (to.matched.some((record) => record.meta.requiresAdmin) && getTokenRole() === 'tecnico' && !to.meta.allowTecnico) {
+    return { name: 'AdminTickets' }
+  }
   // Con sesion activa no tiene sentido volver al formulario de acceso.
   if (to.name === 'Login' && getAdminToken() && !to.query.expired) {
-    return { name: 'AdminDashboard' }
+    return panelHome()
   }
 })
 

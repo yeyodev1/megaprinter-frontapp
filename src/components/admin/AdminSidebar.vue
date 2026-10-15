@@ -12,7 +12,8 @@ const router = useRouter()
 const auth = useAuthStore()
 const dialog = useDialogStore()
 
-const sections = [
+// `tecnico: true` = también lo ve el técnico; el resto es solo para admins.
+const SECTIONS = [
   {
     label: 'Operación',
     links: [
@@ -20,7 +21,7 @@ const sections = [
       { to: '/admin/orders', name: 'AdminOrders', label: 'Pedidos', hint: 'Estados y clientes', icon: 'fa-solid fa-receipt' },
       { to: '/admin/bot', name: 'AdminBot', label: 'Bot WhatsApp', hint: 'Conversaciones en vivo', icon: 'fa-brands fa-whatsapp' },
       { to: '/admin/atencion', name: 'AdminAttention', label: 'Atención', hint: 'Reporte diario', icon: 'fa-solid fa-headset' },
-      { to: '/admin/tickets', name: 'AdminTickets', label: 'Servicio técnico', hint: 'Tickets y suministros', icon: 'fa-solid fa-screwdriver-wrench' },
+      { to: '/admin/tickets', name: 'AdminTickets', label: 'Servicio técnico', hint: 'Tickets y suministros', icon: 'fa-solid fa-screwdriver-wrench', tecnico: true },
       { to: '/admin/catalog', name: 'CatalogAdmin', label: 'Catálogo', hint: 'Productos y categorías', icon: 'fa-solid fa-boxes-stacked' },
     ],
   },
@@ -29,9 +30,18 @@ const sections = [
     links: [
       { to: '/admin/payments', name: 'AdminPayments', label: 'Pagos', hint: 'Transferencia bancaria', icon: 'fa-solid fa-building-columns' },
       { to: '/admin/users', name: 'AdminUsers', label: 'Usuarios', hint: 'Accesos al panel', icon: 'fa-solid fa-users' },
+      { to: '/admin/tecnicos', name: 'AdminTechnicians', label: 'Técnicos', hint: 'Acceso a los tickets', icon: 'fa-solid fa-user-gear' },
     ],
   },
 ]
+
+const sections = computed(() =>
+  SECTIONS.map((section) => ({ ...section, links: section.links.filter((link) => auth.isAdmin || ('tecnico' in link && link.tecnico)) })).filter(
+    (section) => section.links.length,
+  ),
+)
+
+const home = computed(() => (auth.isTecnico ? '/admin/tickets' : '/admin'))
 
 const initials = computed(() =>
   (auth.user?.name ?? 'MP')
@@ -46,7 +56,7 @@ const initials = computed(() =>
 const logout = async () => {
   const confirmed = await dialog.confirm({
     title: '¿Cerrar sesión?',
-    message: 'Tendrás que volver a ingresar tu correo y contraseña para entrar al panel.',
+    message: 'Tendrás que volver a ingresar tus datos de acceso y contraseña para entrar al panel.',
     confirmLabel: 'Cerrar sesión',
     icon: 'fa-solid fa-arrow-right-from-bracket',
   })
@@ -58,9 +68,9 @@ const logout = async () => {
 
 <template>
   <aside class="sidebar" :class="{ open }" aria-label="Navegación del panel">
-    <router-link to="/admin" class="brand" @click="emit('close')">
+    <router-link :to="home" class="brand" @click="emit('close')">
       <BrandMark tone="light" size="sm" />
-      <small>Panel interno</small>
+      <small>{{ auth.isTecnico ? 'Panel técnico' : 'Panel interno' }}</small>
     </router-link>
 
     <nav class="sections">
@@ -91,7 +101,7 @@ const logout = async () => {
       <span class="avatar" aria-hidden="true">{{ initials }}</span>
       <span class="user-copy">
         <strong>{{ auth.user?.name ?? 'Equipo Megaprinter' }}</strong>
-        <small>{{ auth.user?.email ?? '' }}</small>
+        <small>{{ auth.contact }}</small>
       </span>
       <button type="button" aria-label="Cerrar sesión" title="Cerrar sesión" @click="logout">
         <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>

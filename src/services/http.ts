@@ -22,6 +22,22 @@ const storage = () => {
 
 export const getAdminToken = () => storage().getItem(ADMIN_TOKEN_KEY) || ''
 
+/**
+ * Rol guardado dentro del JWT ("admin" o "tecnico"). El router lo necesita al
+ * instante para decidir a dónde va cada quien, antes de que llegue /auth/me.
+ * No es una medida de seguridad: el backend valida el rol en cada ruta.
+ */
+export const getTokenRole = () => {
+  const payload = getAdminToken().split('.')[1]
+  if (!payload) return ''
+  try {
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    return String((JSON.parse(json) as { role?: string }).role || '')
+  } catch {
+    return ''
+  }
+}
+
 export const setAdminToken = (token: string) => storage().setItem(ADMIN_TOKEN_KEY, token)
 
 export const clearAdminToken = () => {

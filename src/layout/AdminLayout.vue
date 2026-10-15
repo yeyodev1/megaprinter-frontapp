@@ -35,7 +35,8 @@ onMounted(() => auth.loadUser())
     </Transition>
 
     <AdminSidebar :open="menuOpen" @close="menuOpen = false" />
-    <AlertsBell />
+    <!-- Las alertas incluyen pedidos y pagos: solo para admins. -->
+    <AlertsBell v-if="auth.isAdmin" />
 
     <main id="contenido" class="content">
       <router-view v-slot="{ Component }">

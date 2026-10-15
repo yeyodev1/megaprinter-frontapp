@@ -2,18 +2,22 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppModal from '@/components/ui/AppModal.vue'
+import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'
 import {
   CLASSIFICATION_LABEL,
   DEVICE_LABEL,
   TICKET_STATUSES,
+  listAssignees,
   listTickets,
   summarizeTicket,
   ticketStatusMeta,
   updateTicket,
   type ServiceTicket,
+  type TicketAssignee,
   type TicketStatus,
 } from '@/services/tickets'
 import { errorMessage } from '@/services/http'
+import { useAuthStore } from '@/stores/auth'
 import { useDialogStore } from '@/stores/dialog'
 import { useAdminEntrance } from '@/composables/useAdminEntrance'
 import { formatDate } from '@/components/admin/orderHelpers'
@@ -23,11 +27,15 @@ import { formatDate } from '@/components/admin/orderHelpers'
  * tablero de izquierda a derecha por estado: se ve a quién se está atendiendo y
  * en qué va. La IA resume qué busca y qué quiere el cliente; lo que no sabe
  * clasificar cae en "Necesita atención".
+ *
+ * El técnico ve el mismo tablero: mueve tarjetas, deja notas y toma o suelta
+ * tickets para sí mismo. Precio final y asignar a otra persona son del admin.
  */
 
 useAdminEntrance()
 const route = useRoute()
 const dialog = useDialogStore()
+const auth = useAuthStore()
 
 const tickets = ref<ServiceTicket[]>([])
 const loading = ref(true)
@@ -42,7 +50,21 @@ const typeFilter = ref<'todos' | 'servicio_tecnico' | 'suministros'>('todos')
 const selected = ref<ServiceTicket | null>(null)
 const note = ref('')
 const finalPrice = ref('')
-const assignedTo = ref('')
+const assignedToId = ref('')
+const mineOnly = ref(false)
+const assignees = ref<TicketAssignee[]>([])
+
+const assigneeOptions = computed<SelectOption[]>(() => [
+  { value: '', label: 'Sin asignar', icon: 'fa-regular fa-circle' },
+  ...assignees.value.map((person) => ({
+    value: person.id,
+    label: person.name,
+    icon: person.role === 'tecnico' ? 'fa-solid fa-user-gear' : 'fa-solid fa-user-shield',
+    description: person.role === 'tecnico' ? 'Técnico' : 'Admin',
+  })),
+])
+
+const isMine = (ticket: ServiceTicket) => Boolean(auth.user?.id) && ticket.assignedToId === auth.user?.id
 
 const columns = computed(() =>
   TICKET_STATUSES.filter((meta) => showClosed.value || (meta.value !== 'cancelado' && meta.value !== 'entregado')),
@@ -52,6 +74,7 @@ const visible = computed(() => {
   const query = search.value.trim().toLowerCase()
   return tickets.value.filter((ticket) => {
     if (typeFilter.value !== 'todos' && ticket.type !== typeFilter.value) return false
+    if (mineOnly.value && !isMine(ticket)) return false
     if (!query) return true
     return [ticket.ticketNumber, ticket.customerName, ticket.customerPhone, ticket.issue, ticket.device, ticket.assignedTo, ticket.summary?.text, ticket.summary?.wants]
       .join(' ')
@@ -76,6 +99,8 @@ const todayCount = computed(() => {
   const today = new Date().toDateString()
   return tickets.value.filter((ticket) => new Date(ticket.createdAt).toDateString() === today).length
 })
+
+const mineCount = computed(() => openTickets.value.filter(isMine).length)
 
 const closedCount = computed(() => tickets.value.filter((ticket) => ticket.status === 'cancelado' || ticket.status === 'entregado').length)
 
@@ -140,7 +165,7 @@ const openTicket = (ticket: ServiceTicket) => {
   selected.value = ticket
   note.value = ''
   finalPrice.value = ticket.finalPrice != null ? String(ticket.finalPrice) : ''
-  assignedTo.value = ticket.assignedTo
+  assignedToId.value = ticket.assignedToId ?? ''
   // Tickets de antes del resumen, o si la IA no alcanzó al crearlo.
   if (!ticket.summary?.at) void summarize(true)
 }
@@ -182,12 +207,44 @@ const onDrop = async (status: TicketStatus) => {
 }
 
 const saveDetails = async () => {
-  const value = finalPrice.value.trim()
-  await save(
-    { finalPrice: value === '' ? null : Number(value), assignedTo: assignedTo.value, ...(note.value.trim() ? { note: note.value.trim() } : {}) },
-    'Ticket actualizado.',
-  )
+  if (!selected.value) return
+  const data: Parameters<typeof updateTicket>[1] = {}
+  // El técnico no envía precio ni asignación: el backend se los rechazaría.
+  if (auth.isAdmin) {
+    const value = finalPrice.value.trim()
+    data.finalPrice = value === '' ? null : Number(value)
+    if (assignedToId.value !== (selected.value.assignedToId ?? '')) data.assignedToId = assignedToId.value || null
+  }
+  if (note.value.trim()) data.note = note.value.trim()
+  if (!Object.keys(data).length) return
+  await save(data, 'Ticket actualizado.')
   note.value = ''
+  assignedToId.value = selected.value?.assignedToId ?? ''
+}
+
+// Tomar o soltar el ticket para uno mismo, en un clic.
+const toggleMine = async () => {
+  if (!selected.value || !auth.user) return
+  const taking = !isMine(selected.value)
+  await save({ assignedToId: taking ? auth.user.id : null }, taking ? `Tomaste ${selected.value.ticketNumber}.` : `Soltaste ${selected.value.ticketNumber}.`)
+  assignedToId.value = selected.value?.assignedToId ?? ''
+}
+
+// Notas, cambios de estado y asignaciones en una sola línea de tiempo.
+const historyOf = (ticket: ServiceTicket) =>
+  [
+    ...ticket.notes.map((item) => ({ at: item.at, text: `📝 ${item.text}`, by: item.by })),
+    ...ticket.statusHistory.map((item) => ({ at: item.at, text: `➡️ ${ticketStatusMeta(item.status).label}`, by: item.by })),
+    ...(ticket.assignHistory ?? []).map((item) => ({ at: item.at, text: item.to ? `👤 Asignado a ${item.to}` : '👤 Quedó sin asignar', by: item.by })),
+  ].sort((a, b) => b.at.localeCompare(a.at))
+
+const loadAssignees = async () => {
+  if (!auth.isAdmin) return
+  try {
+    assignees.value = await listAssignees()
+  } catch {
+    /* sin lista: el admin igual puede usar "Asignarme" */
+  }
 }
 
 let timer: ReturnType<typeof setInterval> | undefined
@@ -199,6 +256,8 @@ watch(
   },
 )
 onMounted(async () => {
+  void auth.loadUser()
+  void loadAssignees()
   await load()
   const code = route.query.ticket
   const found = typeof code === 'string' ? tickets.value.find((ticket) => ticket.ticketNumber === code) : null
@@ -214,7 +273,8 @@ onBeforeUnmount(() => clearInterval(timer))
       <div>
         <p class="eyebrow"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> Servicio técnico</p>
         <h1>Tickets y <em>suministros</em></h1>
-        <p>Lo que registra Mila por WhatsApp. Arrastra cada tarjeta a la columna de su estado.</p>
+        <p v-if="auth.isTecnico">Toma un ticket, arrástralo a la columna de su estado y deja notas de lo que hiciste.</p>
+        <p v-else>Lo que registra Mila por WhatsApp. Arrastra cada tarjeta a la columna de su estado.</p>
       </div>
       <button class="refresh" type="button" :disabled="loading" @click="load()">
         <i :class="loading ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-rotate'" aria-hidden="true"></i> Actualizar
@@ -236,9 +296,12 @@ onBeforeUnmount(() => clearInterval(timer))
       <label class="search">
         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
         <span class="visually-hidden">Buscar ticket</span>
-        <input v-model="search" type="search" placeholder="ST-, cliente, teléfono, problema o asesor" />
+        <input v-model="search" type="search" placeholder="ST-, cliente, teléfono, problema o técnico" />
       </label>
       <div class="types" role="group" aria-label="Tipo">
+        <button type="button" :class="{ active: mineOnly }" :aria-pressed="mineOnly" @click="mineOnly = !mineOnly">
+          <i class="fa-solid fa-user-check" aria-hidden="true"></i> Mis tickets <strong>{{ mineCount }}</strong>
+        </button>
         <button type="button" :class="{ active: typeFilter === 'todos' }" @click="typeFilter = 'todos'">Todo</button>
         <button type="button" :class="{ active: typeFilter === 'servicio_tecnico' }" @click="typeFilter = 'servicio_tecnico'">🛠️ Servicio</button>
         <button type="button" :class="{ active: typeFilter === 'suministros' }" @click="typeFilter = 'suministros'">🧴 Suministros</button>
@@ -286,8 +349,9 @@ onBeforeUnmount(() => clearInterval(timer))
               <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{ ticket.summary.reason }}
             </span>
             <span class="card-foot">
-              <span class="assignee" :class="{ empty: !ticket.assignedTo }">
-                <i class="fa-solid fa-user" aria-hidden="true"></i> {{ ticket.assignedTo || 'Sin asignar' }}
+              <span class="assignee" :class="{ empty: !ticket.assignedTo, mine: isMine(ticket) }">
+                <i :class="isMine(ticket) ? 'fa-solid fa-user-check' : 'fa-solid fa-user'" aria-hidden="true"></i>
+                {{ isMine(ticket) ? 'Tú' : ticket.assignedTo || 'Sin asignar' }}
               </span>
               <span class="price">{{ price(ticket) }}</span>
             </span>
@@ -331,7 +395,7 @@ onBeforeUnmount(() => clearInterval(timer))
 
         <div class="links">
           <a v-if="waLink(selected)" :href="waLink(selected)" target="_blank" rel="noopener" class="wa"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Abrir chat</a>
-          <router-link :to="{ name: 'AdminBot', query: { phone: selected.customerPhone } }" class="ghost"><i class="fa-solid fa-robot" aria-hidden="true"></i> Ver conversación del bot</router-link>
+          <router-link v-if="auth.isAdmin" :to="{ name: 'AdminBot', query: { phone: selected.customerPhone } }" class="ghost"><i class="fa-solid fa-robot" aria-hidden="true"></i> Ver conversación del bot</router-link>
         </div>
 
         <section class="block">
@@ -350,16 +414,39 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
         </section>
 
+        <section class="block">
+          <p class="eyebrow">A cargo</p>
+          <div class="owner">
+            <span class="assignee" :class="{ empty: !selected.assignedTo, mine: isMine(selected) }">
+              <i :class="isMine(selected) ? 'fa-solid fa-user-check' : 'fa-solid fa-user'" aria-hidden="true"></i>
+              {{ isMine(selected) ? `Tú (${selected.assignedTo})` : selected.assignedTo || 'Sin asignar' }}
+            </span>
+            <button
+              v-if="auth.user && (isMine(selected) || auth.isAdmin || !selected.assignedToId)"
+              type="button"
+              class="ghost-btn small"
+              :disabled="saving"
+              @click="toggleMine"
+            >
+              <i :class="isMine(selected) ? 'fa-solid fa-hand' : 'fa-solid fa-hand-holding'" aria-hidden="true"></i>
+              {{ isMine(selected) ? 'Soltar ticket' : 'Tomar ticket' }}
+            </button>
+          </div>
+          <p v-if="auth.isTecnico && selected.assignedToId && !isMine(selected)" class="hint">
+            Lo atiende otra persona. Si debes tomarlo, pide a un administrador que lo reasigne.
+          </p>
+        </section>
+
         <form class="block form" @submit.prevent="saveDetails">
-          <p class="eyebrow">Atención</p>
-          <label class="field">
+          <p class="eyebrow">{{ auth.isAdmin ? 'Atención' : 'Nota' }}</p>
+          <label v-if="auth.isAdmin" class="field">
             <span>Precio final (USD)</span>
             <input v-model="finalPrice" inputmode="decimal" placeholder="Después del diagnóstico" />
           </label>
-          <label class="field">
-            <span>Técnico o asesor a cargo</span>
-            <input v-model="assignedTo" maxlength="120" placeholder="Nombre" />
-          </label>
+          <div v-if="auth.isAdmin" class="field">
+            <span>Asignar a</span>
+            <AppSelect v-model="assignedToId" :options="assigneeOptions" size="sm" icon="fa-solid fa-user" aria-label="Asignar a" />
+          </div>
           <label class="field wide">
             <span>Nueva nota</span>
             <textarea v-model="note" rows="2" maxlength="1000" placeholder="Ej.: cliente trae el equipo el lunes"></textarea>
@@ -369,10 +456,10 @@ onBeforeUnmount(() => clearInterval(timer))
           </button>
         </form>
 
-        <section v-if="selected.notes.length || selected.statusHistory.length" class="block">
+        <section v-if="historyOf(selected).length" class="block">
           <p class="eyebrow">Historial</p>
           <ul class="history">
-            <li v-for="(entry, index) in [...selected.notes.map((item) => ({ at: item.at, text: `📝 ${item.text}`, by: item.by })), ...selected.statusHistory.map((item) => ({ at: item.at, text: `➡️ ${ticketStatusMeta(item.status).label}`, by: item.by }))].sort((a, b) => b.at.localeCompare(a.at))" :key="index">
+            <li v-for="(entry, index) in historyOf(selected)" :key="index">
               <span>{{ entry.text }}<small v-if="entry.by"> · {{ entry.by }}</small></span>
               <time>{{ formatDate(entry.at) }}</time>
             </li>
@@ -656,6 +743,23 @@ onBeforeUnmount(() => clearInterval(timer))
     color: $text-muted;
     font-weight: $weight-medium;
   }
+
+  &.mine {
+    background: $key-900;
+    color: $text-on-dark;
+  }
+}
+
+.owner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-3;
+}
+
+.hint {
+  color: $text-muted;
+  font-size: $admin-text-sm;
 }
 
 .price {
@@ -838,5 +942,10 @@ onBeforeUnmount(() => clearInterval(timer))
 }
 .ghost-btn {
   @include button-secondary;
+
+  &.small {
+    padding: 6px 12px;
+    font-size: $admin-text-sm;
+  }
 }
 </style>

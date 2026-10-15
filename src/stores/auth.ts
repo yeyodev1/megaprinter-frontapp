@@ -1,13 +1,8 @@
 import { defineStore } from 'pinia'
-import { clearAdminToken, getAdminToken, http, setAdminToken } from '@/services/http'
-import { getCurrentUser } from '@/services/users'
+import { clearAdminToken, getAdminToken, getTokenRole, http, setAdminToken } from '@/services/http'
+import { getCurrentUser, type InternalUser } from '@/services/users'
 
-export interface AdminUser {
-  id: string
-  name: string
-  email: string
-  role: string
-}
+export type AdminUser = InternalUser
 
 /**
  * Estado de sesion del panel interno. Reemplaza al antiguo `stores/user.ts`,
@@ -23,12 +18,25 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAuthenticated: (state) => Boolean(state.token),
+    // Tras recargar, el rol sale del token hasta que llega el perfil.
+    role: (state) => state.user?.role ?? (state.token ? getTokenRole() : ''),
+    isAdmin(): boolean {
+      return this.role === 'admin'
+    },
+    isTecnico(): boolean {
+      return this.role === 'tecnico'
+    },
+    /** Lo que se muestra bajo el nombre: correo, WhatsApp o cédula. */
+    contact: (state) => state.user?.email || state.user?.phone || state.user?.cedula || '',
   },
 
   actions: {
-    async login(email: string, password: string) {
+    /** `identifier` = correo, cédula o WhatsApp; el backend reconoce cuál es. */
+    async login(identifier: string, password: string) {
       const { data } = await http.post<{ token: string; user: AdminUser }>('/auth/login', {
-        email,
+        identifier,
+        // Compatibilidad con un backend anterior que solo leía `email`.
+        email: identifier,
         password,
       })
       this.token = data.token

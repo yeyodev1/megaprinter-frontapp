@@ -29,9 +29,12 @@ export interface ServiceTicket {
     at: string | null
   }
   finalPrice: number | null
+  /** Nombre de quien lo atiende y su acceso al panel (null = texto libre o sin asignar). */
   assignedTo: string
+  assignedToId: string | null
   notes: Array<{ text: string; by: string; at: string }>
   statusHistory: Array<{ status: TicketStatus; by: string; at: string }>
+  assignHistory?: Array<{ to: string; by: string; at: string }>
   createdAt: string
   updatedAt: string
 }
@@ -40,8 +43,17 @@ export const listTickets = async () => (await http.get<ServiceTicket[]>('/ticket
 
 export const updateTicket = async (
   id: string,
-  data: Partial<{ status: TicketStatus; note: string; finalPrice: number | null; assignedTo: string }>,
+  data: Partial<{ status: TicketStatus; note: string; finalPrice: number | null; assignedToId: string | null }>,
 ) => (await http.patch<ServiceTicket>(`/tickets/${id}`, data)).data
+
+export interface TicketAssignee {
+  id: string
+  name: string
+  role: 'admin' | 'tecnico'
+}
+
+/** Accesos activos a los que un admin puede asignar tickets. */
+export const listAssignees = async () => (await http.get<TicketAssignee[]>('/tickets/assignees')).data
 
 /** Pide a la IA el resumen de qué busca y qué quiere el cliente. */
 export const summarizeTicket = async (id: string) => (await http.post<ServiceTicket>(`/tickets/${id}/summary`, {}, { timeout: 30000 })).data

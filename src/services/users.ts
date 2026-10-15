@@ -1,10 +1,16 @@
 import { http } from '@/services/http'
 
+export type UserRole = 'admin' | 'tecnico'
+
 export interface InternalUser {
   id: string
   name: string
   email: string
-  role: string
+  /** WhatsApp normalizado (+5939XXXXXXXX). */
+  phone: string
+  cedula: string
+  role: UserRole
+  active: boolean
   createdAt: string
 }
 

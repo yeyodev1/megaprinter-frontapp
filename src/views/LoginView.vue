@@ -4,12 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { errorMessage } from '@/services/http'
 import BrandMark from '@/components/BrandMark.vue'
+import { panelHome } from '@/router'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-const email = ref('')
+const identifier = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
@@ -20,11 +21,13 @@ const submit = async () => {
   loading.value = true
   error.value = ''
   try {
-    await auth.login(email.value.trim(), password.value)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/admin'
-    router.push(redirect)
+    await auth.login(identifier.value.trim(), password.value)
+    // El técnico solo tiene el tablero: si venía de otra página del panel, va a sus tickets.
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+    if (redirect && (auth.isAdmin || redirect.startsWith('/admin/tickets'))) router.push(redirect)
+    else router.push(panelHome())
   } catch (caught) {
-    error.value = errorMessage(caught, 'Correo o contraseña incorrectos.')
+    error.value = errorMessage(caught, 'Datos de acceso o contraseña incorrectos.')
   } finally {
     loading.value = false
   }
@@ -43,7 +46,7 @@ const submit = async () => {
       <div class="intro">
         <p class="eyebrow">Acceso restringido</p>
         <h1>Panel interno</h1>
-        <p class="lede">Acceso exclusivo para el equipo operativo de Megaprinter.</p>
+        <p class="lede">Acceso exclusivo para el equipo de Megaprinter y sus técnicos.</p>
       </div>
 
       <p v-if="expired" class="notice" role="status">
@@ -52,14 +55,16 @@ const submit = async () => {
       </p>
 
       <label>
-        <span>Correo</span>
+        <span>Correo, cédula o WhatsApp</span>
         <input
-          v-model="email"
-          type="email"
+          v-model="identifier"
+          type="text"
           required
           autofocus
+          autocapitalize="off"
           autocomplete="username"
-          placeholder="correo@megaprinter.ec"
+          spellcheck="false"
+          placeholder="correo@megaprinter.ec o 0991234567"
         />
       </label>
 
