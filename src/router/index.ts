@@ -113,6 +113,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: 'Sucursales' },
       },
       {
+        path: 'aprendizaje',
+        name: 'AdminLearning',
+        component: () => import('../views/LearningView.vue'),
+        meta: { title: 'Aprendizaje' },
+      },
+      {
         path: 'users',
         name: 'AdminUsers',
         component: () => import('../views/UsersAdminView.vue'),
