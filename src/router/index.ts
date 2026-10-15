@@ -107,6 +107,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: 'Pagos' },
       },
       {
+        path: 'sucursales',
+        name: 'AdminStore',
+        component: () => import('../views/StoreSettingsView.vue'),
+        meta: { title: 'Sucursales' },
+      },
+      {
         path: 'users',
         name: 'AdminUsers',
         component: () => import('../views/UsersAdminView.vue'),

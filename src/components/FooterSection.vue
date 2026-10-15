@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { brand, whatsappLink } from '@/config/brand'
 import BrandMark from '@/components/BrandMark.vue'
+import { useStoreInfo } from '@/composables/useStoreInfo'
+
+const { city, branches } = useStoreInfo()
 
 const year = new Date().getFullYear()
 const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
@@ -14,8 +17,8 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
         <div class="col brand-col">
           <BrandMark tone="light" size="lg" />
           <p>
-            <template v-for="site in brand.locations" :key="site">{{ site }}<br /></template>
-            {{ brand.city }}
+            <template v-for="branch in branches" :key="branch.name">{{ branch.address }}<br /></template>
+            {{ city }}
           </p>
           <div class="social">
             <a :href="brand.instagram" target="_blank" rel="noopener" aria-label="Instagram">
@@ -28,16 +31,22 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
         </div>
 
         <div class="col">
-          <h2>Horarios de atención</h2>
-          <dl class="hours">
-            <div v-for="slot in brand.hours" :key="slot.days">
-              <dt>
-                {{ slot.days }}
-                <span v-if="slot.note" class="note">{{ slot.note }}</span>
-              </dt>
-              <dd>{{ slot.time }}</dd>
+          <h2>Sucursales y horarios</h2>
+          <div class="branches">
+            <div v-for="branch in branches" :key="branch.name" class="branch">
+              <p class="branch-name">{{ branch.name }}</p>
+              <p class="branch-address">{{ branch.address }}</p>
+              <a v-if="branch.mapsUrl" :href="branch.mapsUrl" target="_blank" rel="noopener" class="maps">
+                <i class="fa-solid fa-map-location-dot" aria-hidden="true"></i> Ver en Google Maps
+              </a>
+              <dl class="hours">
+                <div v-for="slot in branch.hours" :key="slot.days">
+                  <dt>{{ slot.days }}</dt>
+                  <dd>{{ slot.time }}</dd>
+                </div>
+              </dl>
             </div>
-          </dl>
+          </div>
         </div>
 
         <div class="col">
@@ -55,9 +64,10 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
               <i class="fa-brands fa-instagram" aria-hidden="true"></i>
               <a :href="brand.instagram" target="_blank" rel="noopener">{{ brand.instagramHandle }}</a>
             </li>
-            <li v-for="site in brand.locations" :key="site">
+            <li v-for="branch in branches" :key="branch.name">
               <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
-              <span>{{ site }}</span>
+              <a v-if="branch.mapsUrl" :href="branch.mapsUrl" target="_blank" rel="noopener">{{ branch.address }}</a>
+              <span v-else>{{ branch.address }}</span>
             </li>
           </ul>
         </div>
@@ -133,6 +143,39 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
   }
 }
 
+.branches {
+  @include stack($space-6);
+}
+
+.branch {
+  @include stack($space-2);
+
+  .branch-name {
+    @include mono-data($cyan-soft, $text-eyebrow);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .branch-address {
+    color: $text-on-dark;
+  }
+}
+
+.maps {
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: $space-2;
+  color: $brand-300;
+  font-size: $text-body-sm;
+  transition: color $duration-base $ease-out;
+  @include focus-ring($brand-300);
+
+  &:hover {
+    color: $text-on-dark;
+  }
+}
+
 .hours {
   @include stack($space-2);
 
@@ -147,12 +190,6 @@ const whatsapp = whatsappLink('Hola Megaprinter, quiero más información.')
   dt {
     color: $text-on-dark-muted;
     font-size: $text-body-sm;
-
-    .note {
-      display: block;
-      color: $cyan-soft;
-      font-size: $text-eyebrow;
-    }
   }
 
   dd {

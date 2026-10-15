@@ -29,6 +29,7 @@ const SECTIONS = [
     label: 'Sistema',
     links: [
       { to: '/admin/payments', name: 'AdminPayments', label: 'Pagos', hint: 'Transferencia bancaria', icon: 'fa-solid fa-building-columns' },
+      { to: '/admin/sucursales', name: 'AdminStore', label: 'Sucursales', hint: 'Direcciones y horarios', icon: 'fa-solid fa-location-dot' },
       { to: '/admin/users', name: 'AdminUsers', label: 'Usuarios', hint: 'Accesos al panel', icon: 'fa-solid fa-users' },
       { to: '/admin/tecnicos', name: 'AdminTechnicians', label: 'Técnicos', hint: 'Acceso a los tickets', icon: 'fa-solid fa-user-gear' },
     ],
