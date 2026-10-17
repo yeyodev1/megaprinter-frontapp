@@ -16,6 +16,8 @@ export interface ServiceTicket {
   customerEmail: string
   device: string
   issue: string
+  /** Etiquetas automáticas del bot ("Cotización de repuestos"). */
+  tags?: string[]
   category: string
   priceMin: number | null
   priceMax: number | null

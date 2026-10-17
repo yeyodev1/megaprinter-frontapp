@@ -76,7 +76,7 @@ const visible = computed(() => {
     if (typeFilter.value !== 'todos' && ticket.type !== typeFilter.value) return false
     if (mineOnly.value && !isMine(ticket)) return false
     if (!query) return true
-    return [ticket.ticketNumber, ticket.customerName, ticket.customerPhone, ticket.issue, ticket.device, ticket.assignedTo, ticket.summary?.text, ticket.summary?.wants]
+    return [ticket.ticketNumber, ticket.customerName, ticket.customerPhone, ticket.issue, ...(ticket.tags ?? []), ticket.device, ticket.assignedTo, ticket.summary?.text, ticket.summary?.wants]
       .join(' ')
       .toLowerCase()
       .includes(query)
@@ -344,6 +344,9 @@ onBeforeUnmount(() => clearInterval(timer))
               <time :datetime="ticket.createdAt">{{ waitingFor(ticket.createdAt) }}</time>
             </span>
             <strong class="customer">{{ ticket.customerName || ticket.customerPhone }}</strong>
+            <span v-if="ticket.tags?.length" class="tags">
+              <span v-for="tag in ticket.tags" :key="tag" class="tag"><i class="fa-solid fa-tag" aria-hidden="true"></i> {{ tag }}</span>
+            </span>
             <span class="want">{{ headline(ticket) }}</span>
             <span v-if="ticket.summary?.needsAttention && ticket.summary.reason" class="reason">
               <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{ ticket.summary.reason }}
@@ -391,6 +394,9 @@ onBeforeUnmount(() => clearInterval(timer))
           <div v-if="selected.type === 'servicio_tecnico'"><span>Equipo</span><strong>{{ DEVICE_LABEL[selected.device] ?? selected.device }}</strong></div>
           <div><span>Precio sugerido</span><strong>{{ selected.priceMin != null ? `$${selected.priceMin} – $${selected.priceMax}` : 'Por cotizar' }}</strong><small v-if="selected.category">{{ selected.category }} · {{ selected.priceSource }}</small></div>
         </div>
+        <p v-if="selected.tags?.length" class="tags">
+          <span v-for="tag in selected.tags" :key="tag" class="tag"><i class="fa-solid fa-tag" aria-hidden="true"></i> {{ tag }}</span>
+        </p>
         <p class="issue-box"><strong>Lo que contó:</strong> {{ selected.issue }}</p>
 
         <div class="links">
@@ -695,6 +701,19 @@ onBeforeUnmount(() => clearInterval(timer))
 .number {
   @include mono-data($text-body, $admin-text-xs);
   font-weight: $weight-medium;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-1;
+}
+
+.tag {
+  @include admin-badge($cyan-deep, $surface-sunken);
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
 }
 
 .card-top time {
