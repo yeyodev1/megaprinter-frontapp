@@ -340,7 +340,7 @@ onBeforeUnmount(() => clearInterval(timer))
             @click="openTicket(ticket)"
           >
             <span class="card-top">
-              <span class="number">{{ ticket.type === 'suministros' ? '🧴' : '🛠️' }} {{ ticket.ticketNumber }}</span>
+              <span class="number">{{ ticket.type === 'suministros' ? '🧴' : '🛠️' }} {{ ticket.ticketNumber }}<i v-if="ticket.photos?.length" class="fa-solid fa-camera photo-flag" aria-label="Con fotos"></i></span>
               <time :datetime="ticket.createdAt">{{ waitingFor(ticket.createdAt) }}</time>
             </span>
             <strong class="customer">{{ ticket.customerName || ticket.customerPhone }}</strong>
@@ -398,6 +398,11 @@ onBeforeUnmount(() => clearInterval(timer))
           <span v-for="tag in selected.tags" :key="tag" class="tag"><i class="fa-solid fa-tag" aria-hidden="true"></i> {{ tag }}</span>
         </p>
         <p class="issue-box"><strong>Lo que contó:</strong> {{ selected.issue }}</p>
+        <div v-if="selected.photos?.length" class="ticket-photos">
+          <a v-for="(url, index) in selected.photos" :key="url" :href="url" target="_blank" rel="noopener" :aria-label="`Abrir foto ${index + 1} del cliente`">
+            <img :src="url" :alt="`Foto ${index + 1} del cliente`" loading="lazy" />
+          </a>
+        </div>
 
         <div class="links">
           <a v-if="waLink(selected)" :href="waLink(selected)" target="_blank" rel="noopener" class="wa"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Abrir chat</a>
@@ -714,6 +719,35 @@ onBeforeUnmount(() => clearInterval(timer))
   display: inline-flex;
   align-items: center;
   gap: $space-1;
+}
+
+.photo-flag {
+  margin-left: $space-1;
+  color: $text-muted;
+  font-size: $admin-text-xs;
+}
+
+.ticket-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+
+  a {
+    display: flex;
+    width: 96px;
+    height: 96px;
+    overflow: hidden;
+    border: 1px solid $border-subtle;
+    border-radius: $radius-md;
+    background: $surface-sunken;
+    @include focus-ring;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }
 
 .card-top time {

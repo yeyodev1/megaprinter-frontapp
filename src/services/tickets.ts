@@ -18,6 +18,8 @@ export interface ServiceTicket {
   issue: string
   /** Etiquetas automáticas del bot ("Cotización de repuestos"). */
   tags?: string[]
+  /** Fotos que mandó el cliente durante la solicitud. */
+  photos?: string[]
   category: string
   priceMin: number | null
   priceMax: number | null
