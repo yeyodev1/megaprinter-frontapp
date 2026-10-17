@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import PhotoTraining from '@/components/admin/learning/PhotoTraining.vue'
+import PersonaEditor from '@/components/admin/learning/PersonaEditor.vue'
 import {
   createLesson,
   deleteLesson,
   getLearning,
   runLearning,
   updateLesson,
+  type ChatReview,
   type LearningRun,
   type Lesson,
   type LessonKind,
@@ -16,9 +19,10 @@ import { useDialogStore } from '@/stores/dialog'
 import { useAdminEntrance } from '@/composables/useAdminEntrance'
 
 /**
- * Aprendizaje de Mila: cada mañana el sistema revisa los chats de ayer y saca
- * lecciones. Las que solo enseñan a entender se activan solas; las que afirman
- * algo del negocio esperan aprobación aquí. El equipo también puede escribirlas.
+ * Aprendizaje de Mila: cuando un chat sale mal la IA lo revisa al momento, y
+ * cada mañana revisa el día completo. Las lecciones que solo enseñan a entender
+ * se activan solas; las que afirman algo del negocio esperan aprobación aquí.
+ * También se entrena la vista (fotos) y se edita la personalidad.
  */
 
 useAdminEntrance()
@@ -28,6 +32,22 @@ const loading = ref(true)
 const running = ref(false)
 const notice = ref('')
 const runs = ref<LearningRun[]>([])
+const reviews = ref<ChatReview[]>([])
+const section = ref<'lecciones' | 'vista' | 'personalidad'>('lecciones')
+const SECTIONS = [
+  { value: 'lecciones', label: 'Lecciones', icon: 'fa-solid fa-book-open' },
+  { value: 'vista', label: 'Vista (fotos)', icon: 'fa-solid fa-eye' },
+  { value: 'personalidad', label: 'Personalidad', icon: 'fa-solid fa-face-smile' },
+] as const
+const TRIGGER_LABEL: Record<string, string> = { no_entendio: 'No entendió', repitio: 'El cliente repitió', asesor: 'Pasó a asesor' }
+const maskPhone = (phone: string) => (phone.length > 6 ? `${phone.slice(0, 4)}•••${phone.slice(-3)}` : phone)
+const ago = (date: string) => {
+  const minutes = Math.round((Date.now() - new Date(date).getTime()) / 60000)
+  if (minutes < 1) return 'ahora'
+  if (minutes < 60) return `hace ${minutes} min`
+  const hours = Math.round(minutes / 60)
+  return hours < 24 ? `hace ${hours} h` : new Date(date).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })
+}
 const lessons = ref<Lesson[]>([])
 const maxActive = ref(40)
 const tab = ref<LessonStatus>('pendiente')
@@ -63,6 +83,7 @@ const load = async () => {
   try {
     const data = await getLearning()
     runs.value = data.runs
+    reviews.value = data.reviews ?? []
     lessons.value = data.lessons
     maxActive.value = data.maxActive
     if (!countOf('pendiente') && tab.value === 'pendiente') tab.value = 'activa'
@@ -160,11 +181,11 @@ onMounted(load)
         <p class="eyebrow"><i class="fa-solid fa-brain" aria-hidden="true"></i> Sistema</p>
         <h1>Aprendizaje de Mila</h1>
         <p>
-          Cada mañana Mila revisa los chats de ayer y aprende de lo que no entendió. Lo que afirma algo del negocio espera tu
-          aprobación aquí.
+          Cuando un chat sale mal, Mila lo revisa al momento y aprende. Cada mañana revisa el día completo. Lo que afirma algo
+          del negocio espera tu aprobación aquí.
         </p>
       </div>
-      <button type="button" class="primary" :disabled="running || loading" @click="runNow">
+      <button v-if="section === 'lecciones'" type="button" class="primary" :disabled="running || loading" @click="runNow">
         <i :class="running ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-rotate'" aria-hidden="true"></i>
         {{ running ? 'Revisando chats…' : 'Revisar ayer ahora' }}
       </button>
@@ -176,9 +197,51 @@ onMounted(load)
       </p>
     </Transition>
 
-    <p v-if="loading" class="state">Cargando…</p>
+    <nav class="sections" aria-label="Secciones de aprendizaje" data-admin-reveal>
+      <button
+        v-for="item in SECTIONS"
+        :key="item.value"
+        type="button"
+        class="section-btn"
+        :class="{ on: section === item.value }"
+        :aria-current="section === item.value ? 'page' : undefined"
+        @click="section = item.value"
+      >
+        <i :class="item.icon" aria-hidden="true"></i> {{ item.label }}
+      </button>
+    </nav>
+
+    <PhotoTraining v-if="section === 'vista'" @notice="flash" />
+    <PersonaEditor v-else-if="section === 'personalidad'" @notice="flash" />
+
+    <p v-else-if="loading" class="state">Cargando…</p>
 
     <template v-else>
+      <section class="live" data-admin-reveal>
+        <header class="section-head">
+          <h2><span class="pulse" aria-hidden="true"></span> Aprendiendo en vivo</h2>
+          <span class="count">Chats que salieron mal y Mila revisó al momento</span>
+        </header>
+        <p v-if="!reviews.length" class="muted">Todavía nada. Cuando Mila no entienda o pase un chat a asesor, aquí verás lo que aprendió.</p>
+        <ul v-else class="reviews">
+          <li v-for="review in reviews.slice(0, 10)" :key="review._id" class="review">
+            <div class="review-top">
+              <span class="trigger" :class="review.trigger">{{ TRIGGER_LABEL[review.trigger] ?? review.trigger }}</span>
+              <span class="meta">{{ maskPhone(review.phone) }} · {{ ago(review.createdAt) }}</span>
+            </div>
+            <p v-if="review.summary" class="review-summary">{{ review.summary }}</p>
+            <p v-else-if="review.error" class="muted">{{ review.error }}</p>
+            <ul v-if="review.added?.length" class="review-lessons">
+              <li v-for="(item, index) in review.added" :key="index">
+                <i :class="item.status === 'activa' ? 'fa-solid fa-circle-check ok' : 'fa-solid fa-hourglass-half wait'" aria-hidden="true"></i>
+                {{ item.text }}
+              </li>
+            </ul>
+            <p v-else-if="review.summary" class="muted small-text">Nada nuevo que aprender.</p>
+          </li>
+        </ul>
+      </section>
+
       <section class="trend" data-admin-reveal>
         <header class="section-head">
           <h2>¿Está mejorando?</h2>
@@ -296,6 +359,125 @@ onMounted(load)
 
 .notice {
   @include admin-notice;
+}
+
+.sections {
+  display: flex;
+  gap: $space-2;
+  overflow-x: auto;
+  padding-bottom: $space-1;
+  scrollbar-width: none;
+}
+
+.section-btn {
+  @include button-secondary;
+  flex: none;
+  white-space: nowrap;
+
+  &.on {
+    border-color: $cyan-deep;
+    background: $cyan-deep;
+    color: #fff;
+  }
+}
+
+.live {
+  @include admin-card($space-5);
+  @include stack($space-3);
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+  }
+}
+
+.pulse {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: $radius-pill;
+  background: $ok;
+  box-shadow: 0 0 0 0 rgba($ok, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  70% {
+    box-shadow: 0 0 0 8px rgba($ok, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba($ok, 0);
+  }
+}
+
+@include reduced-motion {
+  .pulse {
+    animation: none;
+  }
+}
+
+.reviews {
+  @include stack($space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review {
+  @include stack($space-2);
+  padding-top: $space-3;
+  border-top: 1px solid $border-subtle;
+}
+
+.review-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-2;
+}
+
+.trigger {
+  @include admin-badge($text-body, $surface-sunken);
+
+  &.no_entendio,
+  &.repitio {
+    background: $danger-100;
+    color: $danger-500;
+  }
+}
+
+.review-summary {
+  color: $text-body;
+  font-size: $admin-text-sm;
+}
+
+.review-lessons {
+  @include stack($space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: $space-2;
+    color: $text-strong;
+    font-size: $admin-text-sm;
+  }
+
+  .ok {
+    color: $ok;
+  }
+
+  .wait {
+    color: $text-muted;
+  }
+}
+
+.small-text {
+  font-size: $admin-text-sm;
 }
 
 .state,
