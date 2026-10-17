@@ -1,6 +1,6 @@
 import { http } from '@/services/http'
 
-export type AlertType = 'order_new' | 'payment_confirmed' | 'receipt_review' | 'ticket_new' | 'human_handoff' | 'email_failed'
+export type AlertType = 'order_new' | 'payment_confirmed' | 'receipt_review' | 'ticket_new' | 'human_handoff' | 'warranty_canon' | 'email_failed'
 
 export interface PanelAlert {
   _id: string
@@ -22,5 +22,6 @@ export const ALERT_META: Record<AlertType, { icon: string; tone: string }> = {
   receipt_review: { icon: 'fa-solid fa-magnifying-glass-dollar', tone: 'warn' },
   ticket_new: { icon: 'fa-solid fa-screwdriver-wrench', tone: 'info' },
   human_handoff: { icon: 'fa-solid fa-hand', tone: 'warn' },
+  warranty_canon: { icon: 'fa-solid fa-shield-halved', tone: 'warn' },
   email_failed: { icon: 'fa-solid fa-envelope-circle-check', tone: 'danger' },
 }
